@@ -1,0 +1,1246 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Eternal Rose Code · 永不凋零</title>
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #04050b; }
+  body { font-family: "Segoe UI", system-ui, sans-serif; }
+  #stage { display: block; width: 100vw; height: 100vh; touch-action: none; cursor: crosshair; }
+</style>
+</head>
+<body>
+<canvas id="stage"></canvas>
+<script>
+"use strict";
+
+const TAU = Math.PI * 2;
+const BOUQUET_SCALE = 0.925;
+
+const PETAL = 0, LEAF = 1, STEM = 2, BABY = 3, WRAP = 4, RIBBON = 5, BUNDLE = 6;
+const ROLE_KEY = { 1: "leaf", 2: "stem", 3: "baby", 4: "wrap", 5: "ribbon", 6: "bundle" };
+
+const PALETTES = [
+  {
+    name: "BLUSH ROSE",
+    petal: [[238, 55, 98], [255, 133, 164], [255, 238, 240]],
+    leaf: [[63, 82, 74], [209, 219, 210]],
+    stem: [[44, 69, 56], [132, 154, 132]],
+    baby: [[255, 246, 236], [255, 221, 231]],
+    wrap: [[57, 15, 35], [168, 58, 94]],
+    ribbon: [[218, 198, 209], [255, 249, 242]],
+    bundle: [[72, 20, 42], [174, 72, 91]]
+  },
+  {
+    name: "CRIMSON GOLD",
+    petal: [[151, 13, 46], [235, 61, 84], [255, 220, 177]],
+    leaf: [[66, 72, 55], [200, 204, 176]],
+    stem: [[49, 67, 45], [133, 148, 106]],
+    baby: [[255, 244, 211], [255, 210, 153]],
+    wrap: [[44, 12, 22], [135, 37, 53]],
+    ribbon: [[222, 192, 151], [255, 246, 216]],
+    bundle: [[71, 16, 28], [183, 58, 64]]
+  },
+  {
+    name: "MOONLIT LILAC",
+    petal: [[112, 55, 162], [194, 138, 232], [248, 232, 255]],
+    leaf: [[59, 78, 82], [194, 211, 214]],
+    stem: [[43, 67, 68], [121, 151, 151]],
+    baby: [[244, 243, 255], [215, 220, 255]],
+    wrap: [[39, 18, 57], [118, 57, 136]],
+    ribbon: [[211, 201, 230], [253, 248, 255]],
+    bundle: [[55, 27, 75], [143, 70, 130]]
+  }
+];
+
+const CODE_TEXT = `
+<!doctype html>
+<html lang="zh">
+<head>
+  <meta charset="utf-8">
+  <title>Eternal Rose Code</title>
+  <style>
+    html, body {
+      margin: 0;
+      height: 100%;
+      background: #04050b;
+    }
+    #stage {
+      display: block;
+      width: 100vw;
+      height: 100vh;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="stage"></canvas>
+  <script>
+    "use strict";
+
+    const TAU = Math.PI * 2;
+    const BOUQUET_SCALE = 0.925;
+    const PETAL = 0, LEAF = 1, STEM = 2;
+    const BABY = 3, WRAP = 4, RIBBON = 5;
+
+    function makeRng(seed) {
+      let s = seed >>> 0;
+      return function () {
+        s = (s + 0x6D2B79F5) | 0;
+        let t = Math.imul(s ^ (s >>> 15), 1 | s);
+        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      };
+    }
+
+    class Builder {
+      constructor(seed) {
+        this.rng = makeRng(seed);
+        this.petals = [];
+      }
+
+      addRose(center, radius, index) {
+        const cx = center[0];
+        const cy = center[1];
+        const cz = center[2];
+        for (let layer = 0; layer < 5; layer++) {
+          const petalCount = 3 + layer * 2;
+          for (let petal = 0; petal < petalCount; petal++) {
+            let angle = TAU * petal / petalCount;
+            angle += layer * 0.73;
+            const ring = radius * (0.04 + layer * 0.085);
+            const length = radius * (0.22 + layer * 0.035);
+            const width = radius * (0.10 + layer * 0.017);
+            const twist = 0.48 - layer * 0.052;
+            this.petals.push({
+              angle: angle,
+              ring: ring,
+              length: length,
+              width: width,
+              twist: twist
+            });
+          }
+        }
+      }
+    }
+
+    const canvas = document.getElementById("stage");
+    const ctx = canvas.getContext("2d");
+
+    function project(x, y, z, angle) {
+      const cos = Math.cos(angle);
+      const sin = Math.sin(angle);
+      const rx = x * cos + z * sin;
+      const rz = -x * sin + z * cos;
+      const persp = 1140 / (1140 - rz);
+      return [rx * persp, y * persp];
+    }
+
+    function bloomForever() {
+      const bouquet = new Builder(20260811);
+      const now = performance.now() / 1000;
+      const angle = (now * TAU / 36) % TAU;
+      bouquet.render(ctx, angle);
+      requestAnimationFrame(bloomForever);
+    }
+    bloomForever();
+
+    // The bouquet does not restart.
+    // It does not fade.
+    // It only keeps blooming, glowing and turning.
+    //
+    //                    for you, always.
+  <\/script>
+</body>
+</html>
+`.trim().split("\n");
+
+const KEYWORD_RE = /(\/\/.*$)|("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*')|(<\/?[a-zA-Z][\w-]*)|([a-zA-Z_][\w-]*(?=\s*=))|(\b(?:const|let|var|function|class|return|new|for|of|in|while|if|else|this|true|false|null|undefined|typeof|document|window|Math|performance|requestAnimationFrame)\b)|(\b0x[0-9A-Fa-f]+\b|\b\d+(?:\.\d+)?\b)|([{}()\[\];,.<>=+\-\/*|&!?:])/g;
+
+function makeRng(seed) {
+  let s = seed >>> 0;
+  function next() {
+    s = (s + 0x6D2B79F5) | 0;
+    let t = Math.imul(s ^ (s >>> 15), 1 | s);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  }
+  return {
+    random: next,
+    uniform: (a, b) => a + (b - a) * next(),
+    choice: (arr) => arr[Math.floor(next() * arr.length)],
+    gauss: (mu, sigma) => {
+      let u = 0, v = 0;
+      while (u === 0) u = next();
+      while (v === 0) v = next();
+      return mu + sigma * Math.sqrt(-2 * Math.log(u)) * Math.cos(TAU * v);
+    }
+  };
+}
+class Builder {
+  constructor(seed) {
+    this.rng = makeRng(seed);
+    this.fx = []; this.fy = []; this.fz = [];
+    this.sx = []; this.sy = []; this.sz = [];
+    this.ax = []; this.ay = []; this.az = [];
+    this.role = []; this.tone = []; this.birth = [];
+    this.power = []; this.size = []; this.phase = [];
+  }
+
+  add(f, st, role, tone, birth, power, size, anchor) {
+    if (power === undefined) power = 1.0;
+    if (size === undefined) size = 1.0;
+    const a = anchor || [0, 0, 0];
+    this.fx.push(f[0]); this.fy.push(f[1]); this.fz.push(f[2]);
+    this.sx.push(st[0]); this.sy.push(st[1]); this.sz.push(st[2]);
+    this.ax.push(a[0]); this.ay.push(a[1]); this.az.push(a[2]);
+    this.role.push(role);
+    this.tone.push(Math.max(0, Math.min(1, tone)));
+    this.birth.push(birth);
+    this.power.push(power);
+    this.size.push(size);
+    this.phase.push(this.rng.random() * TAU);
+  }
+
+  addRose(center, radius, bloomIndex) {
+    const cx = center[0], cy = center[1], cz = center[2];
+    const rng = this.rng;
+    for (let layer = 0; layer < 5; layer++) {
+      const petalCount = 3 + layer * 2;
+      for (let petal = 0; petal < petalCount; petal++) {
+        let angle = TAU * petal / petalCount + layer * 0.73;
+        angle += rng.uniform(-0.035, 0.035);
+        for (let iu = 0; iu < 4; iu++) {
+          const u = (iu + 0.35 + rng.random() * 0.3) / 4.0;
+          const v0s = [-1.0, -0.34, 0.34, 1.0];
+          for (let vi = 0; vi < 4; vi++) {
+            const v0 = v0s[vi];
+            const v = v0 + rng.uniform(-0.045, 0.045);
+            const ring = radius * (0.04 + layer * 0.085);
+            const length = radius * (0.22 + layer * 0.035);
+            const radial = ring + length * u;
+            const twist = (0.48 - layer * 0.052) * (1.0 - u);
+            const theta = angle + twist;
+            let width = radius * (0.10 + layer * 0.017);
+            width *= Math.pow(Math.max(0.05, Math.sin(Math.PI * u)), 0.75);
+            const across = v * width;
+            let localX = radial * Math.cos(theta) - across * Math.sin(theta);
+            let localY = (radial * Math.sin(theta) + across * Math.cos(theta)) * 0.92;
+            let localZ = radius * (0.49 - layer * 0.06) * (1.0 - u);
+            localZ += radius * (0.078 + layer * 0.006) * (1.0 - v * v) * Math.sin(Math.PI * u);
+            localZ -= layer * radius * 0.024;
+            localX += rng.uniform(-1.2, 1.2);
+            localY += rng.uniform(-1.2, 1.2);
+            localZ += rng.uniform(-0.8, 0.8);
+
+            const final = [cx + localX, cy + localY, cz + localZ];
+            const unfurl = 0.055 + layer * 0.018;
+            const start = [cx + localX * unfurl, cy + localY * unfurl, cz + localZ * 0.08];
+            const isEdge = Math.abs(v0) > 0.8;
+            const edgeLight = isEdge ? 0.43 : 0.0;
+            const tone = 0.05 + layer * 0.075 + u * 0.24 + edgeLight;
+            let birth = 1.15 + bloomIndex * 0.34 + layer * 0.23 + u * 0.12;
+            birth += rng.uniform(0.0, 0.18);
+            const power = (isEdge ? 1.08 : 0.23) + rng.uniform(0.0, 0.11);
+            const size = (isEdge ? 2.6 : 0.72) + rng.random() * 0.48;
+            this.add(final, start, PETAL, tone, birth, power, size, [cx, cy, cz]);
+          }
+        }
+      }
+    }
+
+    for (let si = 0; si < 116; si++) {
+      const t = si / 115.0;
+      const angle = t * TAU * 2.35 + 0.55;
+      const radial = radius * (0.025 + 0.285 * t);
+      const localX = Math.cos(angle) * radial;
+      const localY = Math.sin(angle) * radial * 0.88;
+      const localZ = radius * (0.46 - 0.22 * t) + Math.sin(t * Math.PI * 5.0) * 1.5;
+      const final = [cx + localX, cy + localY, cz + localZ];
+      const start = [cx + localX * 0.04, cy + localY * 0.04, cz];
+      const birth = 0.95 + bloomIndex * 0.34 + t * 0.44;
+      this.add(final, start, PETAL, 0.06 + t * 0.26, birth, 1.14, 2.7, [cx, cy, cz]);
+    }
+
+    for (let k = 0; k < 96; k++) {
+      const angle = rng.random() * TAU;
+      const radial = radius * rng.uniform(0.62, 1.05);
+      const localX = Math.cos(angle) * radial;
+      const localY = Math.sin(angle) * radial * 0.86;
+      const localZ = rng.uniform(-radius * 0.12, radius * 0.34);
+      const final = [cx + localX, cy + localY, cz + localZ];
+      const start = [cx + localX * 0.12, cy + localY * 0.12, cz];
+      const birth = 2.0 + bloomIndex * 0.34 + rng.uniform(0.0, 1.3);
+      this.add(final, start, PETAL, rng.uniform(0.68, 1.0), birth, 0.145, 0.55, [cx, cy, cz]);
+    }
+  }
+
+  addStem(center, index) {
+    const cx = center[0], cy = center[1], cz = center[2];
+    const rng = this.rng;
+    const baseAngle = index * 2.399963229728653;
+    const base = [34.0 * Math.cos(baseAngle), -210.0, 26.0 * Math.sin(baseAngle)];
+    const control = [cx * 0.32, -70.0 + (index % 3) * 12, cz * 0.25];
+    const top = [cx, cy - 24.0, cz];
+    for (let step = 0; step < 58; step++) {
+      const t = step / 57.0;
+      const inv = 1.0 - t;
+      const point = [
+        inv * inv * base[0] + 2 * inv * t * control[0] + t * t * top[0],
+        inv * inv * base[1] + 2 * inv * t * control[1] + t * t * top[1],
+        inv * inv * base[2] + 2 * inv * t * control[2] + t * t * top[2]
+      ];
+      const role = t < 0.37 ? BUNDLE : STEM;
+      const power = role === BUNDLE ? 0.74 : 0.58;
+      const size = role === BUNDLE ? 1.15 : 0.95;
+      this.add(point, base, role, rng.random(), 0.18 + t * 1.35, power, size);
+    }
+  }
+
+  addLeaves(count) {
+    const rng = this.rng;
+    for (let li = 0; li < count; li++) {
+      const side = li % 2 === 0 ? -1 : 1;
+      const centerX = side * rng.uniform(78.0, 230.0);
+      const centerY = rng.uniform(-65.0, 130.0);
+      const centerZ = rng.uniform(-75.0, 85.0);
+      const direction = (side > 0 ? 0.20 : Math.PI - 0.20) + rng.uniform(-0.34, 0.34);
+      const length = rng.uniform(46.0, 76.0);
+      const width = rng.uniform(14.0, 24.0);
+      for (let ai = 0; ai < 8; ai++) {
+        const along = -1.0 + 2.0 * ai / 7.0;
+        const halfWidth = Math.sqrt(Math.max(0.0, 1.0 - along * along));
+        for (let ci = 0; ci < 4; ci++) {
+          let across = -halfWidth + 2.0 * halfWidth * ci / 3.0;
+          across += rng.uniform(-0.05, 0.05);
+          const lx = along * length * 0.5;
+          const ly = across * width;
+          const x = centerX + lx * Math.cos(direction) - ly * Math.sin(direction);
+          const y = centerY + lx * Math.sin(direction) + ly * Math.cos(direction);
+          const z = centerZ + across * 8.0;
+          const tone = 0.20 + (along + 1.0) * 0.27 + rng.uniform(0.0, 0.2);
+          this.add([x, y, z], [0.0, -235.0, 0.0], LEAF, tone, 0.9 + rng.random() * 2.4, 0.82, 1.05);
+        }
+      }
+    }
+  }
+
+  addBabyBreath(count) {
+    const rng = this.rng;
+    for (let cluster = 0; cluster < count; cluster++) {
+      const angle = rng.random() * TAU;
+      const ringX = rng.uniform(246.0, 312.0);
+      const ringY = rng.uniform(164.0, 226.0);
+      const cx = Math.cos(angle) * ringX;
+      let cy = 125.0 + Math.sin(angle) * ringY;
+      if (cy < -20.0) cy += 95.0;
+      const cz = rng.uniform(-110.0, 110.0);
+      for (let p = 0; p < 15; p++) {
+        const a = rng.random() * TAU;
+        const r = rng.uniform(3.0, 21.0);
+        const x = cx + Math.cos(a) * r;
+        const y = cy + Math.sin(a) * r;
+        const z = cz + rng.uniform(-13.0, 13.0);
+        const start = [cx * 0.2, -150.0, cz * 0.1];
+        const power = (p % 5) ? 0.42 : 1.15;
+        const size = (p % 5) ? 0.8 : 2.8;
+        this.add([x, y, z], start, BABY, rng.random(), 2.0 + rng.random() * 4.2, power, size);
+      }
+    }
+  }
+
+  addFoliageCloud(count) {
+    const rng = this.rng;
+    for (let index = 0; index < count; index++) {
+      const angle = rng.random() * TAU;
+      const radial = 282.0 * Math.sqrt(rng.random());
+      const x = Math.cos(angle) * radial;
+      const z = Math.sin(angle) * radial;
+      let y = 27.0 - Math.max(0.0, radial - 105.0) * 0.10 + rng.gauss(0.0, 29.0);
+      y = Math.max(-86.0, Math.min(96.0, y));
+      const start = [x * 0.08, -103.0, z * 0.08];
+      let role, power, tone;
+      if (index % 4 === 0) {
+        role = BABY;
+        power = rng.uniform(0.72, 1.08);
+        tone = rng.uniform(0.48, 1.0);
+      } else {
+        role = LEAF;
+        power = rng.uniform(0.60, 0.94);
+        tone = rng.uniform(0.68, 1.0);
+      }
+      this.add([x, y, z], start, role, tone, 1.5 + rng.random() * 4.4, power, rng.uniform(0.5, 1.05));
+    }
+  }
+
+  addWrapper() {
+    const rng = this.rng;
+    for (let filament = 0; filament < 76; filament++) {
+      const topX = rng.uniform(-38.0, 38.0);
+      const topZ = rng.uniform(-30.0, 30.0);
+      const botX = rng.uniform(-31.0, 31.0);
+      const botZ = rng.uniform(-24.0, 24.0);
+      for (let step = 0; step < 25; step++) {
+        const t = step / 24.0;
+        let x = topX * (1.0 - t) + botX * t;
+        x += Math.sin(t * Math.PI * 2.0 + filament * 0.37) * 2.2;
+        const y = -104.0 - 111.0 * t;
+        const z = topZ * (1.0 - t) + botZ * t;
+        this.add([x, y, z], [topX, -104.0, topZ], BUNDLE, rng.random(),
+          0.45 + t * 1.15 + rng.random() * 0.25,
+          0.48 + rng.random() * 0.28,
+          0.72 + rng.random() * 0.5);
+      }
+    }
+
+    const tieY = -103.0;
+    const goldenAngle = Math.PI * (3.0 - Math.sqrt(5.0));
+    for (let spray = 0; spray < 38; spray++) {
+      const phi = spray * goldenAngle + 0.31;
+      const radius = rng.uniform(148.0, 246.0);
+      const end = [Math.cos(phi) * radius, rng.uniform(-12.0, 78.0), Math.sin(phi) * radius * 0.72];
+      const start = [Math.cos(phi) * 18.0, tieY, Math.sin(phi) * 15.0];
+      const control = [Math.cos(phi) * radius * 0.32, -62.0 + rng.uniform(-10.0, 10.0), Math.sin(phi) * radius * 0.22];
+      for (let step = 0; step < 24; step++) {
+        const t = step / 23.0;
+        const inv = 1.0 - t;
+        const point = [
+          inv * inv * start[0] + 2.0 * inv * t * control[0] + t * t * end[0],
+          inv * inv * start[1] + 2.0 * inv * t * control[1] + t * t * end[1],
+          inv * inv * start[2] + 2.0 * inv * t * control[2] + t * t * end[2]
+        ];
+        const isPearl = spray % 5 === 0 || step % 9 === 0;
+        const role = isPearl ? BABY : LEAF;
+        const power = isPearl ? rng.uniform(0.58, 0.90) : rng.uniform(0.38, 0.62);
+        this.add(point, start, role, rng.uniform(0.68, 1.0), 0.55 + t * 1.75 + rng.random() * 0.24, power, isPearl ? 1.35 : 0.72);
+      }
+    }
+
+    for (let index = 0; index < 420; index++) {
+      const theta = rng.random() * TAU;
+      const heightRatio = rng.uniform(-1.0, 1.0);
+      const radius = 28.0 + (1.0 - heightRatio) * 2.0 + rng.uniform(-2.2, 2.2);
+      const x = Math.cos(theta) * radius;
+      const y = tieY + heightRatio * 20.0;
+      const z = Math.sin(theta) * radius;
+      this.add([x, y, z], [0.0, tieY, 0.0], WRAP, rng.random(), 0.8 + rng.random() * 1.2, rng.uniform(0.28, 0.58), rng.uniform(0.58, 1.0));
+    }
+    for (let index = 0; index < 96; index++) {
+      const t = index / 95.0;
+      const theta = t * Math.PI * 5.0;
+      const radius = 32.0;
+      this.add([Math.cos(theta) * radius, tieY - 20.0 + 40.0 * t, Math.sin(theta) * radius], [0.0, tieY, 0.0], WRAP, t, 1.0 + t * 0.75, 0.88, 1.2);
+    }
+
+    for (let lobe = 0; lobe < 6; lobe++) {
+      const phi = lobe * TAU / 6.0 + 0.15;
+      const ex = Math.cos(phi), ez = Math.sin(phi);
+      const sx = -ez, sz = ex;
+      const amplitude = 90.0 + (lobe % 3) * 12.0;
+      for (let index = 0; index < 220; index++) {
+        const s = rng.random();
+        const lift = Math.sin(Math.PI * s);
+        const edge = index % 5 === 0;
+        const across = edge ? rng.choice([-1.0, 1.0]) : rng.uniform(-1.0, 1.0);
+        const width = 7.0 + 14.0 * lift;
+        const centerR = amplitude * lift;
+        const centerY = tieY + 9.0 * lift + Math.sin(TAU * s) * (25.0 + (lobe % 2) * 6.0);
+        const sideWave = Math.sin(Math.PI * s + lobe) * 11.0 * lift;
+        const x = ex * centerR + sx * (sideWave + across * width);
+        const z = ez * centerR + sz * (sideWave + across * width);
+        const y = centerY + across * width * 0.42 * Math.cos(Math.PI * s);
+        const power = edge ? rng.uniform(0.58, 0.86) : rng.uniform(0.42, 0.68);
+        this.add([x, y, z], [0.0, tieY, 0.0], RIBBON, rng.uniform(0.48, 1.0), 1.25 + s * 0.9 + lobe * 0.035, power, edge ? 1.18 : 0.68);
+      }
+    }
+
+    for (let index = 0; index < 720; index++) {
+      const theta = rng.random() * TAU;
+      const radial = 118.0 * Math.sqrt(rng.random());
+      const x = Math.cos(theta) * radial;
+      const z = Math.sin(theta) * radial * 0.72;
+      const y = tieY + rng.gauss(0.0, 29.0) + Math.cos(theta * 2.0) * 5.0;
+      this.add([x, y, z], [0.0, tieY, 0.0], RIBBON, rng.uniform(0.58, 1.0), 1.35 + rng.random() * 1.2, rng.uniform(0.24, 0.56), rng.uniform(0.55, 1.25));
+    }
+
+    for (let index = 0; index < 260; index++) {
+      const azimuth = rng.random() * TAU;
+      const vertical = rng.uniform(-1.0, 1.0);
+      const radial = Math.pow(rng.random(), 1.0 / 3.0);
+      const horizontal = Math.sqrt(Math.max(0.0, 1.0 - vertical * vertical));
+      const x = Math.cos(azimuth) * horizontal * radial * 29.0;
+      const y = tieY + vertical * radial * 22.0;
+      const z = Math.sin(azimuth) * horizontal * radial * 25.0;
+      this.add([x, y, z], [0.0, tieY, 0.0], RIBBON, rng.uniform(0.58, 1.0), 0.75 + rng.random() * 1.3, rng.uniform(0.18, 0.54), rng.uniform(0.8, 2.0));
+    }
+
+    for (let tail = 0; tail < 4; tail++) {
+      const phi = tail * TAU / 4.0 + 0.34;
+      const ex = Math.cos(phi), ez = Math.sin(phi);
+      const sx = -ez, sz = ex;
+      for (let index = 0; index < 160; index++) {
+        const t = rng.random();
+        const edge = index % 5 === 0;
+        const across = edge ? rng.choice([-1.0, 1.0]) : rng.uniform(-1.0, 1.0);
+        const width = 21.0 * (1.0 - t) + 7.0;
+        const centerR = 13.0 + 36.0 * t + Math.sin(t * TAU * 1.5) * 5.0;
+        const x = ex * centerR + sx * across * width;
+        const y = tieY - 12.0 - 94.0 * t;
+        let z = ez * centerR + sz * across * width;
+        z += Math.sin(t * Math.PI) * 8.0 + rng.uniform(-3.0, 3.0);
+        const power = edge ? rng.uniform(0.80, 1.10) : rng.uniform(0.36, 0.60);
+        this.add([x, y, z], [0.0, tieY, 0.0], RIBBON, 0.42 + t * 0.58, 1.0 + t * 1.15 + rng.random() * 0.35, power, edge ? 1.35 : 0.72);
+      }
+    }
+
+    for (let curl = 0; curl < 6; curl++) {
+      const phi = curl * TAU / 6.0 + 0.2;
+      const ex = Math.cos(phi), ez = Math.sin(phi);
+      const sx = -ez, sz = ex;
+      for (let step = 0; step < 60; step++) {
+        const t = step / 59.0;
+        const angle = t * Math.PI * (1.35 + curl * 0.16) + curl * 0.7;
+        const radius = 25.0 + t * (58.0 + curl * 6.0);
+        const radial = Math.cos(angle) * radius + 12.0;
+        const sideways = Math.sin(angle) * radius * 0.24;
+        const x = ex * radial + sx * sideways;
+        const y = tieY + Math.sin(angle) * radius * 0.50 - t * 22.0;
+        const z = ez * radial + sz * sideways;
+        this.add([x, y, z], [0.0, tieY, 0.0], RIBBON, 0.72 + 0.28 * t, 1.05 + t * 0.7, 0.92, 1.35);
+      }
+    }
+  }
+}
+function makeRoseCenters() {
+  const rng = makeRng(20260812);
+  const centers = [];
+  const count = 26;
+  const goldenAngle = Math.PI * (3.0 - Math.sqrt(5.0));
+  for (let index = 0; index < count; index++) {
+    const progress = (index + 0.45) / count;
+    const y = 304.0 - progress * 302.0 + rng.uniform(-9.0, 9.0);
+    const normalizedY = (y - 153.0) / 166.0;
+    const ring = 246.0 * Math.sqrt(Math.max(0.13, 1.0 - normalizedY * normalizedY));
+    const angle = index * goldenAngle + 0.38;
+    const x = Math.cos(angle) * ring;
+    const z = Math.sin(angle) * ring;
+    const radius = rng.uniform(74.0, 89.0) + (1.0 - Math.abs(normalizedY)) * 5.0;
+    centers.push([x, y, z, radius]);
+  }
+  const extras = [[292.0, 91.0, 0.0], [230.0, 102.0, 12.0], [166.0, 111.0, -8.0], [98.0, 108.0, 10.0], [30.0, 99.0, -6.0]];
+  for (const e of extras) centers.push([0.0, e[0], e[2], e[1]]);
+  return centers;
+}
+
+function buildOutlines(centers) {
+  const points = [], anchors = [], slices = [], tones = [], births = [];
+  for (let bloomIndex = 0; bloomIndex < centers.length; bloomIndex++) {
+    const c = centers[bloomIndex];
+    const cx = c[0], cy = c[1], cz = c[2], radius = c[3];
+    if (bloomIndex < 26 && bloomIndex % 2 === 1) continue;
+    const layers = [0, 2, 4];
+    for (const layer of layers) {
+      const petalCount = 3 + layer * 2;
+      for (let petal = 0; petal < petalCount; petal++) {
+        const angle = TAU * petal / petalCount + layer * 0.73;
+        const contour = [];
+        const passes = [[-1.0, 0], [1.0, 1]];
+        for (const pass of passes) {
+          const v = pass[0];
+          const reverse = pass[1] === 1;
+          for (let s = 0; s < 10; s++) {
+            const step = reverse ? 9 - s : s;
+            const u = 0.055 + step / 9.0 * 0.92;
+            const ring = radius * (0.04 + layer * 0.085);
+            const length = radius * (0.22 + layer * 0.035);
+            const radial = ring + length * u;
+            const twist = (0.48 - layer * 0.052) * (1.0 - u);
+            const theta = angle + twist;
+            let width = radius * (0.10 + layer * 0.017);
+            width *= Math.pow(Math.max(0.05, Math.sin(Math.PI * u)), 0.75);
+            const across = v * width;
+            const x = radial * Math.cos(theta) - across * Math.sin(theta);
+            const y = (radial * Math.sin(theta) + across * Math.cos(theta)) * 0.92;
+            let z = radius * (0.49 - layer * 0.06) * (1.0 - u);
+            z += radius * (0.078 + layer * 0.006) * (1.0 - v * v) * Math.sin(Math.PI * u);
+            z -= layer * radius * 0.024;
+            contour.push([cx + x, cy + y, cz + z]);
+          }
+        }
+        const start = points.length;
+        for (const p of contour) { points.push(p); anchors.push([cx, cy, cz]); }
+        slices.push([start, points.length]);
+        tones.push(0.12 + layer * 0.12);
+        births.push(1.12 + bloomIndex * 0.34 + layer * 0.23);
+      }
+    }
+  }
+  return { points, anchors, slices, tones, births };
+}
+
+function buildGeometry() {
+  const builder = new Builder(20260811);
+  const centers = makeRoseCenters();
+  for (let index = 0; index < centers.length; index++) {
+    const c = centers[index];
+    builder.addStem([c[0], c[1], c[2]], index);
+    builder.addRose([c[0], c[1], c[2]], c[3], index);
+  }
+  builder.addLeaves(30);
+  builder.addFoliageCloud(3000);
+  builder.addBabyBreath(64);
+  builder.addWrapper();
+
+  const n = builder.fx.length;
+  const data = {
+    final: new Float32Array(n * 3),
+    start: new Float32Array(n * 3),
+    anchor: new Float32Array(n * 3),
+    role: new Uint8Array(n),
+    tone: new Float32Array(n),
+    birth: new Float32Array(n),
+    power: new Float32Array(n),
+    size: new Float32Array(n),
+    phase: new Float32Array(n)
+  };
+  let maxBirth = 0;
+  for (let i = 0; i < n; i++) {
+    const i3 = i * 3;
+    data.final[i3] = builder.fx[i]; data.final[i3 + 1] = builder.fy[i]; data.final[i3 + 2] = builder.fz[i];
+    data.start[i3] = builder.sx[i]; data.start[i3 + 1] = builder.sy[i]; data.start[i3 + 2] = builder.sz[i];
+    data.anchor[i3] = builder.ax[i]; data.anchor[i3 + 1] = builder.ay[i]; data.anchor[i3 + 2] = builder.az[i];
+    data.role[i] = builder.role[i];
+    data.tone[i] = builder.tone[i];
+    data.birth[i] = builder.birth[i];
+    if (builder.birth[i] > maxBirth) maxBirth = builder.birth[i];
+    data.power[i] = builder.power[i];
+    data.size[i] = builder.size[i];
+    data.phase[i] = builder.phase[i];
+  }
+  const outlines = buildOutlines(centers);
+  return { data, count: n, outlines, centers };
+}
+
+const geometry = buildGeometry();
+const data = geometry.data;
+const count = geometry.count;
+const outline = geometry.outlines;
+const colors = new Float32Array(count * 3);
+
+const canvas = document.getElementById("stage");
+const ctx = canvas.getContext("2d", { alpha: false });
+
+let width = 1280, height = 720, dpr = 1;
+let showCode = true, left = 537, sceneW = 743;
+let paletteIndex = 0;
+let started = performance.now() / 1000;
+let bloomStarted = started;
+let mouseParallax = 0, targetParallax = 0;
+const sparks = [];
+const rng = makeRng(314159);
+const starField = [];
+for (let i = 0; i < 95; i++) starField.push([rng.random(), rng.random(), rng.uniform(0.4, 1.5), rng.random() * TAU]);
+
+let accum = null, imageData = null, pixels = null, off = null, offCtx = null;
+let half = null, halfCtx = null, quarter = null, quarterCtx = null;
+let ambient = null;
+let lastSceneW = 0, lastH = 0;
+let codeLines = [], codeLineH = 0, codeFontPx = 14, codePanelW = 0;
+let fontSmall = "12px sans-serif", fontLabel = "bold 15px sans-serif";
+let palette = PALETTES[0];
+
+function setPalette(index) {
+  paletteIndex = ((index % PALETTES.length) + PALETTES.length) % PALETTES.length;
+  palette = PALETTES[paletteIndex];
+  const role = data.role, tone = data.tone;
+  for (let i = 0; i < count; i++) {
+    const t = tone[i], ro = role[i];
+    let r, g, b;
+    if (ro === PETAL) {
+      const d = palette.petal[0], m = palette.petal[1], l = palette.petal[2];
+      if (t < 0.52) {
+        const tt = t / 0.52;
+        r = d[0] + (m[0] - d[0]) * tt; g = d[1] + (m[1] - d[1]) * tt; b = d[2] + (m[2] - d[2]) * tt;
+      } else {
+        const tt = (t - 0.52) / 0.48;
+        r = m[0] + (l[0] - m[0]) * tt; g = m[1] + (l[1] - m[1]) * tt; b = m[2] + (l[2] - m[2]) * tt;
+      }
+    } else {
+      const pair = palette[ROLE_KEY[ro]];
+      const f = pair[0], s = pair[1];
+      r = f[0] + (s[0] - f[0]) * t; g = f[1] + (s[1] - f[1]) * t; b = f[2] + (s[2] - f[2]) * t;
+    }
+    const i3 = i * 3;
+    colors[i3] = r; colors[i3 + 1] = g; colors[i3 + 2] = b;
+  }
+}
+function buildCodeLines() {
+  codePanelW = left;
+  codeLineH = Math.round(codeFontPx * 1.35) + 1;
+  codeLines = CODE_TEXT.map(function (line) {
+    const c = document.createElement("canvas");
+    c.width = Math.max(1, codePanelW);
+    c.height = codeLineH;
+    const g = c.getContext("2d");
+    g.font = codeFontPx + "px " + CODE_FONT;
+    g.textBaseline = "top";
+    let cursorX = 0;
+    let position = 0;
+    KEYWORD_RE.lastIndex = 0;
+    let match;
+    while ((match = KEYWORD_RE.exec(line)) !== null) {
+      if (match.index > position) {
+        const text = line.slice(position, match.index);
+        g.font = codeFontPx + "px " + CODE_FONT;
+        g.fillStyle = "rgb(184,190,207)";
+        g.fillText(text, cursorX, 0);
+        cursorX += g.measureText(text).width;
+      }
+      const token = match[0];
+      if (match[1]) { g.font = codeFontPx + "px " + CODE_FONT; g.fillStyle = "rgb(88,125,104)"; }
+      else if (match[2]) { g.font = codeFontPx + "px " + CODE_FONT; g.fillStyle = "rgb(229,190,113)"; }
+      else if (match[3]) { g.font = "bold " + codeFontPx + "px " + CODE_FONT; g.fillStyle = "rgb(232,104,166)"; }
+      else if (match[4]) { g.font = codeFontPx + "px " + CODE_FONT; g.fillStyle = "rgb(122,185,241)"; }
+      else if (match[5]) { g.font = "bold " + codeFontPx + "px " + CODE_FONT; g.fillStyle = "rgb(194,146,232)"; }
+      else if (match[6]) { g.font = codeFontPx + "px " + CODE_FONT; g.fillStyle = "rgb(87,196,209)"; }
+      else { g.font = codeFontPx + "px " + CODE_FONT; g.fillStyle = "rgb(140,146,165)"; }
+      g.fillText(token, cursorX, 0);
+      cursorX += g.measureText(token).width;
+      position = match.index + token.length;
+      if (match[0].length === 0) KEYWORD_RE.lastIndex++;
+    }
+    if (position < line.length) {
+      g.font = codeFontPx + "px " + CODE_FONT;
+      g.fillStyle = "rgb(184,190,207)";
+      g.fillText(line.slice(position), cursorX, 0);
+    }
+    return c;
+  });
+}
+
+function buildAmbient() {
+  ambient = document.createElement("canvas");
+  ambient.width = Math.max(1, sceneW);
+  ambient.height = Math.max(1, height);
+  const g = ambient.getContext("2d");
+  const cx = sceneW * 0.52, cy = height * 0.37;
+  const outer = Math.min(sceneW, height) * 0.45;
+  for (let radius = outer; radius > 12; radius -= 14) {
+    const closeness = 1.0 - radius / outer;
+    g.fillStyle = "rgb(" + Math.floor(1 + closeness * 11) + "," + Math.floor(closeness * 2) + "," + Math.floor(2 + closeness * 7) + ")";
+    g.beginPath();
+    g.arc(cx, cy, radius, 0, TAU);
+    g.fill();
+  }
+}
+
+function ensureBuffers() {
+  if (lastSceneW === sceneW && lastH === height && accum) return;
+  lastSceneW = sceneW;
+  lastH = height;
+  accum = new Float32Array(sceneW * height * 3);
+  off = document.createElement("canvas");
+  off.width = Math.max(1, sceneW);
+  off.height = Math.max(1, height);
+  offCtx = off.getContext("2d");
+  imageData = offCtx.createImageData(Math.max(1, sceneW), Math.max(1, height));
+  pixels = imageData.data;
+  half = document.createElement("canvas");
+  half.width = Math.max(1, sceneW >> 1);
+  half.height = Math.max(1, height >> 1);
+  halfCtx = half.getContext("2d");
+  quarter = document.createElement("canvas");
+  quarter.width = Math.max(1, sceneW >> 2);
+  quarter.height = Math.max(1, height >> 2);
+  quarterCtx = quarter.getContext("2d");
+  buildAmbient();
+}
+
+function resize() {
+  const w = window.innerWidth, h = window.innerHeight;
+  dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const cw = Math.round(w * dpr), ch = Math.round(h * dpr);
+  if (canvas.width !== cw || canvas.height !== ch) {
+    canvas.width = cw;
+    canvas.height = ch;
+  }
+  canvas.style.width = w + "px";
+  canvas.style.height = h + "px";
+  width = w; height = h;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  showCode = w >= 760;
+  left = showCode ? Math.max(400, Math.min(570, Math.round(w * 0.42))) : 0;
+  sceneW = Math.max(1, w - left);
+  const scale = Math.max(0.82, Math.min(1.35, h / 720.0));
+  codeFontPx = Math.max(12, Math.round(14 * scale));
+  const smallPx = Math.max(11, Math.round(12 * scale));
+  const labelPx = Math.max(13, Math.round(15 * scale));
+  fontSmall = smallPx + "px " + UI_FONT;
+  fontLabel = "bold " + labelPx + "px " + UI_FONT;
+  ensureBuffers();
+  if (showCode) buildCodeLines();
+}
+
+const CODE_FONT = 'Consolas, "Cascadia Mono", "Courier New", monospace';
+const UI_FONT = '"Microsoft YaHei UI", "Segoe UI", system-ui, sans-serif';
+
+function projectPoint(px, py, pz, cosA, sinA, ct, st, scale, ox, oy) {
+  const x = px * cosA + pz * sinA;
+  const z = -px * sinA + pz * cosA;
+  const y = py * ct - z * st;
+  const z2 = py * st + z * ct;
+  const persp = 1140.0 / (1140.0 - z2);
+  return [ox + x * persp * scale, oy - y * persp * scale, persp, z2];
+}
+
+function drawBackground(elapsed) {
+  ctx.fillStyle = "rgb(4,5,11)";
+  ctx.fillRect(0, 0, width, height);
+  for (let index = 0; index < 36; index++) {
+    const t = index / 35.0;
+    const r = Math.floor(5 + 7 * t);
+    const g = Math.floor(6 + 3 * t);
+    const b = Math.floor(14 + 8 * (1.0 - Math.abs(t - 0.5)));
+    ctx.fillStyle = "rgb(" + r + "," + g + "," + b + ")";
+    const y0 = Math.floor(height * index / 36);
+    const y1 = Math.floor(height * (index + 1) / 36) + 1;
+    ctx.fillRect(left, y0, sceneW, y1 - y0);
+  }
+  ctx.fillStyle = "rgb(5,6,12)";
+  ctx.fillRect(0, 0, left, height);
+  ctx.globalCompositeOperation = "lighter";
+  for (let i = 0; i < starField.length; i++) {
+    const s = starField[i];
+    const pulse = 0.45 + 0.55 * Math.pow(Math.sin(elapsed * 0.75 + s[3]), 2);
+    const color = Math.floor(72 + pulse * 100);
+    const x = left + s[0] * sceneW;
+    const y = s[1] * height;
+    const radius = s[2] * pulse < 1.25 ? 1 : 2;
+    ctx.fillStyle = "rgb(" + color + "," + (color - 5) + "," + Math.min(255, color + 18) + ")";
+    ctx.beginPath();
+    ctx.arc(x, y, radius, 0, TAU);
+    ctx.fill();
+  }
+  if (ambient) ctx.drawImage(ambient, left, 0);
+  ctx.globalCompositeOperation = "source-over";
+}
+
+function drawCodePanel(elapsed) {
+  if (!showCode) return;
+  const headerH = 58;
+  const lineH = codeLineH;
+  const totalH = codeLines.length * lineH;
+  const offset = (elapsed * 30.0) % totalH;
+
+  ctx.fillStyle = "rgb(10,11,20)";
+  ctx.fillRect(0, 0, left, headerH);
+  ctx.strokeStyle = "rgb(35,36,52)";
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(0, headerH + 0.5); ctx.lineTo(left, headerH + 0.5); ctx.stroke();
+  const dots = ["rgb(255,95,106)", "rgb(255,193,75)", "rgb(67,202,115)"];
+  for (let i = 0; i < 3; i++) {
+    ctx.fillStyle = dots[i];
+    ctx.beginPath(); ctx.arc(21 + i * 21, 20, 5, 0, TAU); ctx.fill();
+  }
+  ctx.font = fontLabel;
+  ctx.fillStyle = "rgb(214,216,228)";
+  ctx.textBaseline = "top";
+  ctx.fillText("index.html", 82, 10);
+  ctx.font = fontSmall;
+  const runText = "●  RUNNING  ∞";
+  ctx.fillStyle = "rgb(104,216,159)";
+  ctx.fillText(runText, left - ctx.measureText(runText).width - 18, 13);
+  ctx.fillStyle = "rgb(84,87,108)";
+  ctx.fillText("SINGLE FILE  /  CANVAS PARTICLE ENGINE", 82, 34);
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(0, headerH + 1, left, height - headerH - 1);
+  ctx.clip();
+  const visibleFocus = Math.floor(headerH + height * 0.49);
+  ctx.fillStyle = "rgb(12,15,27)";
+  ctx.fillRect(0, visibleFocus, left, lineH);
+  ctx.fillStyle = "rgb(169,71,121)";
+  ctx.fillRect(0, visibleFocus, 2, lineH);
+
+  for (let repeat = 0; repeat < 2; repeat++) {
+    const baseY = headerH + 8 - offset + repeat * totalH;
+    for (let index = 0; index < codeLines.length; index++) {
+      const y = Math.floor(baseY + index * lineH);
+      if (y < headerH - lineH || y > height) continue;
+      ctx.font = codeFontPx + "px " + CODE_FONT;
+      ctx.fillStyle = "rgb(58,61,78)";
+      const num = ("   " + (index + 1)).slice(-3);
+      ctx.fillText(num, 9, y);
+      const line = CODE_TEXT[index];
+      let leading = 0;
+      while (leading < line.length && line[leading] === " ") leading++;
+      const guideW = ctx.measureText("    ").width;
+      ctx.strokeStyle = "rgb(28,31,45)";
+      ctx.beginPath();
+      for (let guide = 1; guide <= Math.floor(leading / 4); guide++) {
+        const gx = Math.floor(48 + guide * guideW) + 0.5;
+        ctx.moveTo(gx, y); ctx.lineTo(gx, y + lineH);
+      }
+      ctx.stroke();
+      ctx.drawImage(codeLines[index], 48, y);
+    }
+  }
+  if (Math.floor(elapsed * 2) % 2 === 0) {
+    ctx.fillStyle = "rgb(235,137,183)";
+    ctx.fillRect(left - 13, visibleFocus + 3, 2, lineH - 6);
+  }
+  ctx.restore();
+  ctx.strokeStyle = "rgb(104,93,122)";
+  ctx.beginPath(); ctx.moveTo(left + 0.5, 0); ctx.lineTo(left + 0.5, height); ctx.stroke();
+  ctx.strokeStyle = "rgb(34,32,49)";
+  ctx.beginPath(); ctx.moveTo(left + 3.5, 0); ctx.lineTo(left + 3.5, height); ctx.stroke();
+}
+function drawSpaceBox(angle, elapsed) {
+  const corners = [
+    [-365, -285, 250], [365, -285, 250], [-365, 400, 250], [365, 400, 250],
+    [-365, -285, -250], [365, -285, -250], [-365, 400, -250], [365, 400, -250]
+  ];
+  const cosA = Math.cos(angle), sinA = Math.sin(angle);
+  const tilt = 0.028 * Math.sin(angle);
+  const ct = Math.cos(tilt), st = Math.sin(tilt);
+  const scale = Math.min(sceneW / 760.0, height / 720.0) * 1.06;
+  const ox = sceneW * 0.52 + mouseParallax * 8.0;
+  const oy = height * 0.59;
+  const px = [], py = [], depth = [];
+  for (let i = 0; i < corners.length; i++) {
+    const r = projectPoint(corners[i][0], corners[i][1], corners[i][2], cosA, sinA, ct, st, scale, ox, oy);
+    px.push(left + r[0]); py.push(r[1]); depth.push(r[3]);
+  }
+  const edges = [[0, 1], [1, 3], [3, 2], [2, 0], [4, 5], [5, 7], [7, 6], [6, 4], [0, 4], [1, 5], [2, 6], [3, 7]];
+  ctx.globalCompositeOperation = "lighter";
+  for (const e of edges) {
+    const a = e[0], b = e[1];
+    const near = (depth[a] + depth[b]) * 0.5;
+    const light = Math.floor(90 + Math.max(-270, Math.min(270, near)) / 270 * 32);
+    const color = "rgb(" + light + "," + Math.max(0, light - 3) + "," + Math.min(255, light + 16) + ")";
+    const halo = "rgb(" + Math.floor(light / 4) + "," + Math.floor(Math.max(0, light - 3) / 4) + "," + Math.floor(Math.min(255, light + 16) / 4) + ")";
+    ctx.strokeStyle = halo;
+    ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(px[a], py[a]); ctx.lineTo(px[b], py[b]); ctx.stroke();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(px[a], py[a]); ctx.lineTo(px[b], py[b]); ctx.stroke();
+  }
+  ctx.globalCompositeOperation = "source-over";
+}
+
+let outX = null, outY = null, outD = null;
+
+function drawOutlines(angle, bloomT, elapsed) {
+  const pts = outline.points;
+  const anc = outline.anchors;
+  const cosA = Math.cos(angle), sinA = Math.sin(angle);
+  const tilt = 0.028 * Math.sin(angle);
+  const ct = Math.cos(tilt), st = Math.sin(tilt);
+  const scale = Math.min(sceneW / 760.0, height / 720.0) * 1.06;
+  const ox = sceneW * 0.52 + mouseParallax * 8.0;
+  const oy = height * 0.59;
+  const n = pts.length;
+  if (outX === null || outX.length !== n) {
+    outX = new Float32Array(n); outY = new Float32Array(n); outD = new Float32Array(n);
+  }
+  const X = outX, Y = outY, D = outD;
+  for (let i = 0; i < n; i++) {
+    const p = pts[i], a = anc[i];
+    let lx = p[0] - a[0], lz = p[2] - a[2];
+    let wx = a[0] + lx * cosA - lz * sinA;
+    let wz = a[2] + lx * sinA + lz * cosA;
+    let wy = p[1];
+    wx *= BOUQUET_SCALE; wy *= BOUQUET_SCALE; wz *= BOUQUET_SCALE;
+    const r = projectPoint(wx, wy, wz, cosA, sinA, ct, st, scale, ox, oy);
+    X[i] = left + r[0]; Y[i] = r[1]; D[i] = r[3];
+  }
+  const dark = palette.petal[0], middle = palette.petal[1], light = palette.petal[2];
+  ctx.globalCompositeOperation = "lighter";
+  ctx.lineWidth = 1;
+  for (let index = 0; index < outline.slices.length; index++) {
+    const reveal = Math.max(0.0, Math.min(1.0, (bloomT - outline.births[index]) / 0.9));
+    if (reveal <= 0.0) continue;
+    const tone = outline.tones[index];
+    let base;
+    if (tone < 0.52) {
+      const tt = tone / 0.52;
+      base = [dark[0] + (middle[0] - dark[0]) * tt, dark[1] + (middle[1] - dark[1]) * tt, dark[2] + (middle[2] - dark[2]) * tt];
+    } else {
+      const tt = (tone - 0.52) / 0.48;
+      base = [middle[0] + (light[0] - middle[0]) * tt, middle[1] + (light[1] - middle[1]) * tt, middle[2] + (light[2] - middle[2]) * tt];
+    }
+    const s = outline.slices[index];
+    let dsum = 0;
+    for (let p = s[0]; p < s[1]; p++) dsum += D[p];
+    const depthLight = Math.max(0.66, Math.min(1.05, 0.82 + (dsum / (s[1] - s[0])) / 900.0));
+    const factor = (0.24 + 0.27 * reveal) * depthLight;
+    const r = Math.max(0, Math.min(255, Math.floor(base[0] * factor)));
+    const g = Math.max(0, Math.min(255, Math.floor(base[1] * factor)));
+    const b = Math.max(0, Math.min(255, Math.floor(base[2] * factor)));
+    ctx.strokeStyle = "rgb(" + r + "," + g + "," + b + ")";
+    ctx.beginPath();
+    ctx.moveTo(X[s[0]], Y[s[0]]);
+    for (let p = s[0] + 1; p < s[1]; p++) ctx.lineTo(X[p], Y[p]);
+    ctx.closePath();
+    ctx.stroke();
+  }
+  ctx.globalCompositeOperation = "source-over";
+}
+
+function drawParticles(angle, bloomT, elapsed) {
+  ensureBuffers();
+  accum.fill(0);
+  const cosA = Math.cos(angle), sinA = Math.sin(angle);
+  const tilt = 0.028 * Math.sin(angle);
+  const ct = Math.cos(tilt), st = Math.sin(tilt);
+  const scale = Math.min(sceneW / 760.0, height / 720.0) * 1.06;
+  const ox = sceneW * 0.52 + mouseParallax * 8.0;
+  const oy = height * 0.59;
+
+  const fx = data.final, st0 = data.start, an = data.anchor;
+  const role = data.role, birth = data.birth, power = data.power, phase = data.phase;
+
+  let growthSum = 0;
+  for (let i = 0; i < count; i++) {
+    const i3 = i * 3;
+    let g = (bloomT - birth[i]) / 1.05;
+    if (g < 0) g = 0; else if (g > 1) g = 1;
+    g = g * g * (3 - 2 * g);
+    growthSum += g;
+    let px = st0[i3] + (fx[i3] - st0[i3]) * g;
+    let py = st0[i3 + 1] + (fx[i3 + 1] - st0[i3 + 1]) * g;
+    let pz = st0[i3 + 2] + (fx[i3 + 2] - st0[i3 + 2]) * g;
+    py += Math.sin(elapsed * 0.72 + phase[i]) * (0.75 * g);
+    if (role[i] === PETAL) {
+      const lx = px - an[i3], lz = pz - an[i3 + 2];
+      px = an[i3] + lx * cosA - lz * sinA;
+      pz = an[i3 + 2] + lx * sinA + lz * cosA;
+    }
+    px *= BOUQUET_SCALE; py *= BOUQUET_SCALE; pz *= BOUQUET_SCALE;
+    const rx = px * cosA + pz * sinA;
+    const rz = -px * sinA + pz * cosA;
+    const ry = py * ct - rz * st;
+    const rz2 = py * st + rz * ct;
+    const persp = 1140.0 / (1140.0 - rz2);
+    const sx = ox + rx * persp * scale;
+    const sy = oy - ry * persp * scale;
+    if (g > 0.002) {
+      const ix = sx | 0, iy = sy | 0;
+      if (ix >= 0 && ix < sceneW && iy >= 0 && iy < height) {
+        let depthLight = 0.68 + (rz2 + 260.0) / 840.0;
+        if (depthLight < 0.58) depthLight = 0.58; else if (depthLight > 1.18) depthLight = 1.18;
+        const shimmer = 0.90 + 0.10 * Math.sin(elapsed * 1.25 + phase[i]);
+        const intensity = power[i] * g * depthLight * shimmer;
+        const base = (iy * sceneW + ix) * 3;
+        accum[base] += colors[i3] * intensity;
+        accum[base + 1] += colors[i3 + 1] * intensity;
+        accum[base + 2] += colors[i3 + 2] * intensity;
+      }
+    }
+  }
+
+  const total = sceneW * height;
+  let a = 0, p = 0;
+  for (let i = 0; i < total; i++) {
+    pixels[p] = accum[a] * 0.72;
+    pixels[p + 1] = accum[a + 1] * 0.72;
+    pixels[p + 2] = accum[a + 2] * 0.72;
+    pixels[p + 3] = 255;
+    a += 3; p += 4;
+  }
+  offCtx.putImageData(imageData, 0, 0);
+
+  ctx.globalCompositeOperation = "lighter";
+  halfCtx.clearRect(0, 0, half.width, half.height);
+  halfCtx.drawImage(off, 0, 0, half.width, half.height);
+  quarterCtx.clearRect(0, 0, quarter.width, quarter.height);
+  quarterCtx.drawImage(half, 0, 0, quarter.width, quarter.height);
+  ctx.globalAlpha = 0.36;
+  ctx.drawImage(quarter, left, 0, sceneW, height);
+  ctx.globalAlpha = 0.58;
+  ctx.drawImage(half, left, 0, sceneW, height);
+  ctx.globalAlpha = 1.0;
+  ctx.drawImage(off, left, 0);
+  ctx.globalAlpha = 0.18;
+  ctx.drawImage(off, left + 1, 0);
+  ctx.drawImage(off, left - 1, 0);
+  ctx.drawImage(off, left, 1);
+  ctx.drawImage(off, left, -1);
+  ctx.globalAlpha = 1.0;
+  ctx.globalCompositeOperation = "source-over";
+
+  drawSparkles(angle, bloomT, elapsed);
+  return growthSum / count * 100.0;
+}
+function drawSparkles(angle, bloomT, elapsed) {
+  const cosA = Math.cos(angle), sinA = Math.sin(angle);
+  const tilt = 0.028 * Math.sin(angle);
+  const ct = Math.cos(tilt), st = Math.sin(tilt);
+  const scale = Math.min(sceneW / 760.0, height / 720.0) * 1.06;
+  const ox = sceneW * 0.52 + mouseParallax * 8.0;
+  const oy = height * 0.59;
+  const fx = data.final, st0 = data.start, an = data.anchor;
+  const role = data.role, birth = data.birth, size = data.size, phase = data.phase;
+  let activeCount = 0;
+  ctx.lineWidth = 1;
+  for (let i = 0; i < count; i++) {
+    const i3 = i * 3;
+    let g = (bloomT - birth[i]) / 1.05;
+    if (g < 0) g = 0; else if (g > 1) g = 1;
+    g = g * g * (3 - 2 * g);
+    if (g <= 0.002) continue;
+    if (activeCount % 53 === 0 && size[i] >= 1.9) {
+      const pulse = Math.sin(elapsed * 2.1 + phase[i]);
+      if (pulse >= 0.34) {
+        let px = st0[i3] + (fx[i3] - st0[i3]) * g;
+        let py = st0[i3 + 1] + (fx[i3 + 1] - st0[i3 + 1]) * g;
+        let pz = st0[i3 + 2] + (fx[i3 + 2] - st0[i3 + 2]) * g;
+        py += Math.sin(elapsed * 0.72 + phase[i]) * (0.75 * g);
+        if (role[i] === PETAL) {
+          const lx = px - an[i3], lz = pz - an[i3 + 2];
+          px = an[i3] + lx * cosA - lz * sinA;
+          pz = an[i3 + 2] + lx * sinA + lz * cosA;
+        }
+        px *= BOUQUET_SCALE; py *= BOUQUET_SCALE; pz *= BOUQUET_SCALE;
+        const rx = px * cosA + pz * sinA;
+        const rz = -px * sinA + pz * cosA;
+        const ry = py * ct - rz * st;
+        const rz2 = py * st + rz * ct;
+        const persp = 1140.0 / (1140.0 - rz2);
+        const sx = left + ox + rx * persp * scale;
+        const sy = oy - ry * persp * scale;
+        const radius = 2 + Math.floor(size[i] * 0.65);
+        let cr, cg, cb;
+        if (i % 5 === 0) { cr = 255; cg = 224; cb = 174; }
+        else { cr = Math.min(255, colors[i3] * 1.12) | 0; cg = Math.min(255, colors[i3 + 1] * 1.12) | 0; cb = Math.min(255, colors[i3 + 2] * 1.12) | 0; }
+        ctx.strokeStyle = "rgb(" + cr + "," + cg + "," + cb + ")";
+        ctx.beginPath();
+        ctx.moveTo(sx - radius * 2, sy); ctx.lineTo(sx + radius * 2, sy);
+        ctx.moveTo(sx, sy - radius * 2); ctx.lineTo(sx, sy + radius * 2);
+        ctx.stroke();
+        ctx.fillStyle = "rgb(255,250,249)";
+        ctx.fillRect(sx, sy, 1, 1);
+      }
+    }
+    activeCount++;
+  }
+}
+
+function drawLabels(bloomPercent, elapsed) {
+  ctx.textBaseline = "top";
+  ctx.font = fontLabel;
+  if (bloomPercent < 99.2) {
+    const statusText = "GENERATING ROSES  " + bloomPercent.toFixed(1).padStart(5, "0") + "%";
+    ctx.fillStyle = "rgb(255,154,190)";
+    ctx.fillText(statusText, width - ctx.measureText(statusText).width - 28, 28);
+    const barW = Math.min(245, Math.floor(sceneW * 0.32));
+    const barX = width - barW - 30, barY = 56;
+    ctx.fillStyle = "rgb(42,30,45)";
+    ctx.fillRect(barX, barY, barW, 2);
+    ctx.fillStyle = "rgb(245,112,161)";
+    ctx.fillRect(barX, barY, Math.floor(barW * Math.min(1.0, bloomPercent / 100.0)), 2);
+  }
+  ctx.font = fontLabel;
+  const forever = "∞  FOR YOU, ALWAYS";
+  ctx.fillStyle = "rgb(216,190,207)";
+  ctx.fillText(forever, left + Math.floor(sceneW / 2) - Math.floor(ctx.measureText(forever).width / 2), height - 43);
+  ctx.font = fontSmall;
+  const helpText = "空格换色  ·  R 重新盛放  ·  F11 全屏  ·  Esc 退出";
+  ctx.fillStyle = "rgb(91,83,104)";
+  ctx.fillText(helpText, width - ctx.measureText(helpText).width - 22, height - 23);
+  ctx.fillStyle = "rgb(119,105,124)";
+  ctx.fillText(palette.name, left + 28, height - 23);
+}
+
+function burst(x, y) {
+  const pal = palette.petal;
+  for (let index = 0; index < 38; index++) {
+    const angle = TAU * index / 38 + rng.uniform(-0.12, 0.12);
+    const speed = rng.uniform(55.0, 165.0);
+    sparks.push({
+      x: x, y: y,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed,
+      life: rng.uniform(0.8, 1.5),
+      color: pal[index % 3]
+    });
+  }
+}
+
+function drawClickSparks(delta) {
+  ctx.globalCompositeOperation = "source-over";
+  for (let i = sparks.length - 1; i >= 0; i--) {
+    const s = sparks[i];
+    s.life -= delta;
+    if (s.life <= 0) { sparks.splice(i, 1); continue; }
+    s.x += s.vx * delta;
+    s.y += s.vy * delta;
+    s.vx *= 0.98;
+    s.vy = s.vy * 0.98 + 32.0 * delta;
+    const fade = Math.min(1.0, s.life);
+    ctx.fillStyle = "rgb(" + (s.color[0] * fade | 0) + "," + (s.color[1] * fade | 0) + "," + (s.color[2] * fade | 0) + ")";
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, 2, 0, TAU);
+    ctx.fill();
+  }
+}
+
+let lastFrame = performance.now() / 1000;
+
+function frame(nowMs) {
+  const now = nowMs / 1000;
+  const delta = Math.min(0.05, now - lastFrame);
+  lastFrame = now;
+  if (window.innerWidth !== width || window.innerHeight !== height) resize();
+  const elapsed = now - started;
+  const bloomT = now - bloomStarted;
+  mouseParallax += (targetParallax - mouseParallax) * 0.045;
+  const angle = (elapsed * TAU / 36.0) % TAU + mouseParallax * 0.055;
+
+  ctx.globalCompositeOperation = "source-over";
+  ctx.globalAlpha = 1;
+  drawBackground(elapsed);
+  drawCodePanel(elapsed);
+  drawSpaceBox(angle, elapsed);
+  drawOutlines(angle, bloomT, elapsed);
+  const bloomPercent = drawParticles(angle, bloomT, elapsed);
+  drawClickSparks(delta);
+  drawLabels(bloomPercent, elapsed);
+
+  requestAnimationFrame(frame);
+}
+
+window.addEventListener("keydown", function (e) {
+  if (e.key === " " || e.code === "Space") {
+    setPalette(paletteIndex + 1);
+    e.preventDefault();
+  } else if (e.key === "r" || e.key === "R") {
+    bloomStarted = performance.now() / 1000;
+  } else if (e.key === "F11") {
+    if (!document.fullscreenElement) {
+      if (document.documentElement.requestFullscreen) document.documentElement.requestFullscreen();
+    } else if (document.exitFullscreen) {
+      document.exitFullscreen();
+    }
+    e.preventDefault();
+  }
+});
+
+window.addEventListener("mousemove", function (e) {
+  targetParallax = (e.clientX / Math.max(1, width) - 0.5) * 2.0;
+});
+
+canvas.addEventListener("mousedown", function (e) {
+  if (e.button === 0) burst(e.clientX, e.clientY);
+});
+
+window.addEventListener("resize", resize);
+
+resize();
+setPalette(0);
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
