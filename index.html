@@ -138,12 +138,20 @@
 const ROSE_MODULE_BUGGY = `
 const TAU = Math.PI * 2;
 
-// 每一层花瓣的数量：越靠外越多
+// 一、衬底：叶子、满天星、包装纸
+function buildFoliage(builder) {
+  builder.addLeaves(30);
+  builder.addFoliageCloud(3000);
+  builder.addBabyBreath(64);
+  builder.addWrapper();
+}
+
+// 二、每一层花瓣的数量：越靠外越多
 function petalCountOf(layer) {
   3 + layer * 2;
 }
 
-// 26 个花心：沿一条黄金角螺旋线分布
+// 三、26 个花心：沿一条黄金角螺旋线分布
 function makeRoseCenters(count, rng) {
   const centers = [];
   const goldenAngle =
@@ -152,15 +160,38 @@ function makeRoseCenters(count, rng) {
     const progress = (index + 0.45) / count;
     const y = 304.0 - progress * 302.0 + rng.uniform(-9.0, 9.0);
     const normalizedY = (y - 153.0) / 166.0;
-    const ring = 246.0 * Math.sqrt(Math.max(0.13, 1.0 - normalizedY * normalizedY));
+    const ring = 246.0 * Math.sqrt(
+      Math.max(0.13, 1.0 - normalizedY * normalizedY));
     const angle = index * goldenAngle + 0.38;
-    const radius = rng.uniform(74.0, 89.0) + (1.0 - Math.abs(normalizedY)) * 5.0;
-    centers.push([Math.cos(angle) * ring, y, Math.sin(angle) * ring, radius]);
+    const radius = rng.uniform(7.4, 8.9)
+      + (1.0 - Math.abs(normalizedY)) * 5.0;
+    centers.push([
+      Math.cos(angle) * ring, y, Math.sin(angle) * ring, radius]);
   }
   return centers;
 }
 
-// 一直开下去（bouquet / ctx / requestAnimationFrame 由引擎提供）
+// 四、把整束花搭起来（builder 由引擎提供）
+function buildBouquet(builder) {
+  const rng = makeRng(20260812);
+  const centers = makeRoseCenters(26, rng);
+  const buds = [
+    [292, 91, 0], [230, 102, 12], [166, 111, -8],
+    [98, 108, 10], [30, 99, -6]
+  ];
+  for (const b of buds) centers.push([0, b[0], b[2], b[1]]);
+  let index = 0;
+  for (const c of centers) {
+    builder.addStem(c);
+    builder.addRose(c, c[3], index);
+    index++;
+  }
+  // TODO: 衬底先不画了
+  // buildFoliage(builder);
+  return centers;
+}
+
+// 五、一直开下去（bouquet / ctx / requestAnimationFrame 由引擎提供）
 function bloomForever() {
   const now = performance.now() / 1000;
   const angle = (now * TAU / 36.0) % TAU;
@@ -199,9 +230,31 @@ function defaultMakeRoseCenters(count, rng) {
   return centers;
 }
 
+function defaultBuildFoliage(builder) {
+  builder.addLeaves(30);
+  builder.addFoliageCloud(3000);
+  builder.addBabyBreath(64);
+  builder.addWrapper();
+}
+
+function defaultBuildBouquet(builder) {
+  const rng = makeRng(20260812);
+  const centers = defaultMakeRoseCenters(26, rng);
+  const buds = [[292.0, 91.0, 0.0], [230.0, 102.0, 12.0], [166.0, 111.0, -8.0], [98.0, 108.0, 10.0], [30.0, 99.0, -6.0]];
+  for (const b of buds) centers.push([0.0, b[0], b[2], b[1]]);
+  for (let index = 0; index < centers.length; index++) {
+    const c = centers[index];
+    builder.addStem(c, index);
+    builder.addRose(c, c[3], index);
+  }
+  defaultBuildFoliage(builder);
+  return centers;
+}
+
 const RULES = {
   petalCountOf: defaultPetalCountOf,
   makeRoseCenters: defaultMakeRoseCenters,
+  buildBouquet: defaultBuildBouquet,
   continuous: true
 };
 
@@ -717,22 +770,6 @@ class Builder {
     }
   }
 }
-function makeRoseCenters() {
-  const rng = makeRng(20260812);
-  let centers = [];
-  if (typeof RULES.makeRoseCenters === "function") {
-    try {
-      const result = RULES.makeRoseCenters(26, rng);
-      if (Array.isArray(result)) centers = result;
-    } catch (err) {
-      centers = [];
-    }
-  }
-  const extras = [[292.0, 91.0, 0.0], [230.0, 102.0, 12.0], [166.0, 111.0, -8.0], [98.0, 108.0, 10.0], [30.0, 99.0, -6.0]];
-  for (const e of extras) centers.push([0.0, e[0], e[2], e[1]]);
-  return centers;
-}
-
 function buildOutlines(centers) {
   const points = [], anchors = [], slices = [], tones = [], births = [];
   for (let bloomIndex = 0; bloomIndex < centers.length; bloomIndex++) {
@@ -781,16 +818,15 @@ function buildOutlines(centers) {
 
 function buildGeometry() {
   const builder = new Builder(20260811);
-  const centers = makeRoseCenters();
-  for (let index = 0; index < centers.length; index++) {
-    const c = centers[index];
-    builder.addStem([c[0], c[1], c[2]], index);
-    builder.addRose([c[0], c[1], c[2]], c[3], index);
+  let centers = [];
+  if (typeof RULES.buildBouquet === "function") {
+    try {
+      const result = RULES.buildBouquet(builder);
+      if (Array.isArray(result)) centers = result;
+    } catch (err) {
+      centers = [];
+    }
   }
-  builder.addLeaves(30);
-  builder.addFoliageCloud(3000);
-  builder.addBabyBreath(64);
-  builder.addWrapper();
 
   const n = builder.fx.length;
   const data = {
@@ -1229,7 +1265,7 @@ function drawParticles(angle, bloomT, elapsed) {
     const persp = 1140.0 / (1140.0 - rz2);
     const sx = ox + rx * persp * scale;
     const sy = oy - ry * persp * scale;
-    if (g > 0.002) {
+    if (g > 0.002 && sx === sx && sy === sy) {
       const ix = sx | 0, iy = sy | 0;
       if (ix >= 0 && ix < sceneW && iy >= 0 && iy < height) {
         let depthLight = 0.68 + (rz2 + 260.0) / 840.0;
@@ -1544,6 +1580,7 @@ const engineStub = {
   bouquet: { render: function () {} },
   ctx: {},
   performance: performance,
+  makeRng: makeRng,
   requestAnimationFrame: function (cb) {
     rafCalls++;
     if (typeof cb !== "function") {
@@ -1556,15 +1593,19 @@ const engineStub = {
 
 function compileModule(src) {
   const body = '"use strict";\n' +
-    "const { bouquet, ctx, requestAnimationFrame, performance } = engine;\n" +
+    "const { bouquet, ctx, requestAnimationFrame, performance, makeRng } = engine;\n" +
     src +
     "\n;return {" +
     ' petalCountOf: typeof petalCountOf === "function" ? petalCountOf : null,' +
     ' makeRoseCenters: typeof makeRoseCenters === "function" ? makeRoseCenters : null,' +
+    ' buildFoliage: typeof buildFoliage === "function" ? buildFoliage : null,' +
+    ' buildBouquet: typeof buildBouquet === "function" ? buildBouquet : null,' +
     ' bloomForever: typeof bloomForever === "function" ? bloomForever : null };';
   const api = new Function("engine", body)(engineStub);
   if (!api.petalCountOf) throw new Error("找不到 petalCountOf()");
   if (!api.makeRoseCenters) throw new Error("找不到 makeRoseCenters()");
+  if (!api.buildFoliage) throw new Error("找不到 buildFoliage()");
+  if (!api.buildBouquet) throw new Error("找不到 buildBouquet()");
   if (!api.bloomForever) throw new Error("找不到 bloomForever()");
   return api;
 }
@@ -1588,6 +1629,25 @@ function validCenter(c) {
 
 const EXPECTED_PETAL_COUNTS = [3, 5, 7, 9, 11];
 
+function makeMockBuilder() {
+  const calls = { addStem: [], addRose: [], addLeaves: [], addFoliageCloud: [], addBabyBreath: [], addWrapper: 0 };
+  return {
+    calls: calls,
+    addStem: function (c, i) { calls.addStem.push([c, i]); },
+    addRose: function (c, r, i) { calls.addRose.push([c, r, i]); },
+    addLeaves: function (n) { calls.addLeaves.push(n); },
+    addFoliageCloud: function (n) { calls.addFoliageCloud.push(n); },
+    addBabyBreath: function (n) { calls.addBabyBreath.push(n); },
+    addWrapper: function () { calls.addWrapper++; }
+  };
+}
+
+function sumCalls(list) {
+  let total = 0;
+  for (let i = 0; i < list.length; i++) total += Number(list[i]) || 0;
+  return total;
+}
+
 function runTests(api) {
   const results = [];
   let passed = 0, failed = 0;
@@ -1597,73 +1657,117 @@ function runTests(api) {
     if (ok) passed++; else failed++;
   }
 
-  // 1. 花心
+  // ── 先用一个 mock builder 把整束花"搭"一遍，看每一步发生了什么 ──
+  const mock = makeMockBuilder();
+  let buildErr = null;
+  try {
+    api.buildBouquet(mock);
+  } catch (err) {
+    buildErr = err;
+  }
+
+  // 1. 衬底：叶子、满天星、包装纸
+  if (buildErr) {
+    record(false, "buildBouquet()", describeError(buildErr));
+  } else {
+    const leaves = sumCalls(mock.calls.addLeaves);
+    const cloud = sumCalls(mock.calls.addFoliageCloud);
+    const ok = leaves > 0 && cloud >= 1000;
+    record(ok, "衬底 buildFoliage", ok ?
+      "叶子、满天星、包装纸都在" :
+      "衬底是空的（叶子 / 满天星 / 包装纸一个都没画）");
+  }
+
+  // 2. 花茎：每一根都得拿到自己的 index
+  if (buildErr) {
+    record(false, "花茎 addStem", "跳过（buildBouquet 没能跑起来）", true);
+  } else {
+    let badStem = -1;
+    for (let i = 0; i < mock.calls.addStem.length; i++) {
+      const idx = mock.calls.addStem[i][1];
+      if (typeof idx !== "number" || !isFinite(idx)) { badStem = i; break; }
+    }
+    const ok = mock.calls.addStem.length > 0 && badStem === -1;
+    record(ok, "花茎 addStem", ok ?
+      (mock.calls.addStem.length + " 根花茎，各自站位") :
+      (badStem >= 0 ? "第 " + badStem + " 根花茎没拿到 index（成了 NaN）" : "一根花茎都没有"));
+  }
+
+  // 3. 花心：数量（直接调 makeRoseCenters）
   let centers = null;
+  let centersErr = null;
   try {
     centers = api.makeRoseCenters(26, makeRng(20260812));
   } catch (err) {
-    record(false, "makeRoseCenters()", describeError(err));
-    centers = null;
+    centersErr = err;
   }
-  const centerList = Array.isArray(centers) ? centers : null;
-  if (centerList === null && results.length === 0) {
-    record(false, "makeRoseCenters()", "没有返回数组");
-  } else if (centerList !== null && results.length === 0) {
-    if (centerList.length !== 26) {
-      record(false, "makeRoseCenters()", "返回 " + centerList.length + " 个花心（期望 26 个）");
-    } else if (!centerList.every(validCenter)) {
-      record(false, "makeRoseCenters()", "花心坐标里有 NaN / Infinity");
-    } else {
-      record(true, "makeRoseCenters()", "26 个花心，坐标全部有效");
-    }
+  const list = Array.isArray(centers) ? centers : null;
+  let centersOK = false;
+  if (centersErr) {
+    record(false, "花心 makeRoseCenters", describeError(centersErr));
+  } else if (!list || list.length !== 26) {
+    record(false, "花心 makeRoseCenters", "返回 " + (list ? list.length : 0) + " 个花心（期望 26 个）");
+  } else if (!list.every(validCenter)) {
+    record(false, "花心 makeRoseCenters", "坐标里有 NaN / Infinity");
+  } else {
+    record(true, "花心 makeRoseCenters", "26 个花心，坐标全部有效");
+    centersOK = true;
   }
 
-  // 2. 每层花瓣数
+  // 4. 花头大小
+  if (!centersOK) {
+    record(false, "花头大小", "跳过（没有可用的花心）", true);
+  } else {
+    let minR = Infinity, maxR = 0;
+    for (let i = 0; i < list.length; i++) {
+      if (list[i][3] < minR) minR = list[i][3];
+      if (list[i][3] > maxR) maxR = list[i][3];
+    }
+    const ok = minR > 50;
+    record(ok, "花头大小", ok ?
+      ("半径 " + minR.toFixed(0) + " – " + maxR.toFixed(0)) :
+      ("花头半径只有 " + maxR.toFixed(1) + "，缩成了小点"));
+  }
+
+  // 5. 每层花瓣数
   let counts = [];
   try {
     for (let layer = 0; layer < 5; layer++) counts.push(api.petalCountOf(layer));
-  } catch (err) {
-    counts = [];
-  }
+  } catch (err) { counts = []; }
   let countsOk = counts.length === 5;
   if (countsOk) {
-    for (let i = 0; i < 5; i++) {
-      if (counts[i] !== EXPECTED_PETAL_COUNTS[i]) countsOk = false;
-    }
+    for (let i = 0; i < 5; i++) if (counts[i] !== EXPECTED_PETAL_COUNTS[i]) countsOk = false;
   }
   if (countsOk) {
-    record(true, "petalCountOf()", "[" + counts.join(", ") + "]");
+    record(true, "花瓣 petalCountOf", "[" + counts.join(", ") + "]");
   } else if (counts.length === 0) {
-    record(false, "petalCountOf()", "调用时抛错");
+    record(false, "花瓣 petalCountOf", "调用时抛错");
   } else {
-    let firstBad = -1;
+    let firstBad = 0;
     for (let i = 0; i < counts.length; i++) {
       if (counts[i] !== EXPECTED_PETAL_COUNTS[i]) { firstBad = i; break; }
     }
     const actual = counts[firstBad];
     const shown = actual === undefined ? "undefined" : String(actual);
-    record(false, "petalCountOf()", "第 " + firstBad + " 层返回 " + shown + "（期望 " + EXPECTED_PETAL_COUNTS[firstBad] + "）");
+    record(false, "花瓣 petalCountOf", "第 " + firstBad + " 层返回 " + shown + "（期望 " + EXPECTED_PETAL_COUNTS[firstBad] + "）");
   }
 
-  // 3. 螺旋排列（行为测试：花心不能挤在一条直线上）
-  if (!centerList || centerList.length < 2 || !centerList.every(validCenter)) {
+  // 6. 螺旋排列（行为测试：花心不能挤在一条直线上）
+  if (!centersOK) {
     record(false, "螺旋排列", "跳过（没有可用的花心）", true);
   } else {
     const dirs = {};
-    for (let i = 0; i < centerList.length; i++) {
-      const c = centerList[i];
-      const deg = Math.atan2(c[2], c[0]) * 180 / Math.PI;
+    for (let i = 0; i < list.length; i++) {
+      const deg = Math.atan2(list[i][2], list[i][0]) * 180 / Math.PI;
       dirs[Math.round(deg)] = true;
     }
     const spread = Object.keys(dirs).length;
-    if (spread >= 20) {
-      record(true, "螺旋排列", centerList.length + " 个花心分布在 " + spread + " 个方向");
-    } else {
-      record(false, "螺旋排列", centerList.length + " 个花心只有 " + spread + " 个方向，排成了一条直线");
-    }
+    record(spread >= 20, "螺旋排列", spread >= 20 ?
+      (list.length + " 个花心分布在 " + spread + " 个方向") :
+      (list.length + " 个花心只有 " + spread + " 个方向，排成了一条直线"));
   }
 
-  // 4. 一直开下去
+  // 7. 一直开下去
   let loopError = null;
   rafCalls = 0;
   rafScheduled = null;
@@ -1767,6 +1871,7 @@ function applySource(src) {
   const outcome = runTests(api);
   RULES.petalCountOf = api.petalCountOf;
   RULES.makeRoseCenters = api.makeRoseCenters;
+  RULES.buildBouquet = api.buildBouquet;
   RULES.continuous = outcome.continuous;
   rebuild();
   renderConsole(outcome, null);
@@ -1899,6 +2004,7 @@ els.reset.addEventListener("click", function () {
     // 已经修好过：直接回到那朵完整的花
     RULES.petalCountOf = defaultPetalCountOf;
     RULES.makeRoseCenters = defaultMakeRoseCenters;
+    RULES.buildBouquet = defaultBuildBouquet;
     RULES.continuous = true;
     rebuild();
     win();
