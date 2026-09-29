@@ -2,246 +2,18 @@
 <html lang="zh">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="theme-color" content="#04050b">
-<meta name="format-detection" content="telephone=no">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='0.9em' font-size='88'%3E%F0%9F%8C%B9%3C/text%3E%3C/svg%3E">
-<title>Eternal Rose Code · 修好它</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Eternal Rose Code · 永不凋零</title>
 <style>
-  :root {
-    --mono: Consolas, "Cascadia Mono", "Courier New", monospace;
-    --ui: -apple-system, "Microsoft YaHei UI", "PingFang SC", "Segoe UI", system-ui, sans-serif;
-    --line: 25px;
-  }
-  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-  html, body {
-    margin: 0; height: 100%; overflow: hidden; background: #04050b;
-    overscroll-behavior: none;
-    -webkit-user-select: none; user-select: none;
-    -webkit-touch-callout: none;
-    font-family: var(--ui); color: #c9ccda;
-  }
-  #stage { display: block; width: 100%; height: 100%; touch-action: none; cursor: crosshair; }
-  body.mode-code #stage { display: none; }
-  body.mode-show #work { display: none; }
-
-  #work {
-    position: fixed; left: 0; right: 0;
-    top: var(--vvtop, 0px); height: var(--vh, 100%);
-    display: flex; flex-direction: column; background: #04050b;
-  }
-
-  #bar {
-    flex: 0 0 auto; display: flex; align-items: center; gap: 8px;
-    padding: 8px 12px; background: #0a0b14; border-bottom: 1px solid #232436;
-    white-space: nowrap; flex-wrap: wrap;
-  }
-  .dot { width: 9px; height: 9px; border-radius: 50%; flex: 0 0 auto; }
-  .d1 { background: #ff5f6a; } .d2 { background: #ffc14b; } .d3 { background: #43ca73; }
-  #fname { font-family: var(--mono); font-size: 15px; color: #d6d8e4; margin-left: 2px; }
-  #status { margin-left: auto; font-size: 13px; color: #ff9abe; }
-  #status.ok { color: #68d89f; }
-  #run, #reset {
-    -webkit-appearance: none; appearance: none;
-    border: 1px solid #3a3d5e; background: #171a2c; color: #dfe2ee;
-    font-family: var(--ui); font-size: 16px; font-weight: 600;
-    padding: 0 16px; min-height: 44px; min-width: 44px; border-radius: 8px;
-  }
-  #run { background: #12301f; border-color: #2f6b4e; color: #8ff0bf; }
-  #run:active, #reset:active { filter: brightness(1.6); }
-  #run.armed, #reset.armed { background: #4a1a26; border-color: #8e3448; color: #ffc2d2; }
-
-  #panes {
-    flex: 1 1 auto; min-height: 0; display: grid; gap: 10px; padding: 10px;
-    grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
-    grid-template-rows: minmax(110px, 0.85fr) minmax(110px, 1fr);
-    grid-template-areas: "ed pv" "ed out";
-  }
-  @media (orientation: portrait) {
-    #panes {
-      grid-template-columns: minmax(0, 1fr);
-      grid-template-rows: minmax(86px, 0.6fr) minmax(0, 1.15fr) minmax(86px, 0.85fr);
-      grid-template-areas: "pv" "ed" "out";
-    }
-  }
-
-  /* 键盘弹起时：把预览压成一条，优先留给编辑器和控制台 */
-  body.kb #panes {
-    grid-template-rows: minmax(60px, 0.42fr) minmax(88px, 1fr);
-  }
-  @media (orientation: portrait) {
-    body.kb #panes {
-      grid-template-rows: minmax(50px, 0.38fr) minmax(0, 1.35fr) minmax(60px, 0.72fr);
-    }
-  }
-
-  #previewWrap {
-    grid-area: pv; position: relative; overflow: hidden;
-    background: #04050b; border: 1px solid #232436; border-radius: 8px; min-height: 0;
-  }
-  #preview { display: block; width: 100%; height: 100%; }
-
-  #editorPane {
-    grid-area: ed; display: flex; min-width: 0; min-height: 0; overflow: hidden;
-    background: #0a0b14; border: 1px solid #232436; border-radius: 8px;
-  }
-  #gutter {
-    flex: 0 0 auto; margin: 0; padding: 12px 7px 12px 0; width: 40px;
-    text-align: right; overflow: hidden; color: #3a3d4e; background: #080910;
-    border-right: 1px solid #1b1c2a;
-    font-family: var(--mono); font-size: 17px; line-height: var(--line);
-    font-variant-numeric: tabular-nums;
-  }
-  #editorScroll { position: relative; flex: 1 1 auto; min-width: 0; min-height: 0; }
-  #hlc, #code {
-    margin: 0; padding: 12px 14px; border: 0;
-    font-family: var(--mono); font-size: 17px; line-height: var(--line);
-    white-space: pre; tab-size: 2;
-  }
-  #hl { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
-  #hlc { display: block; color: #b8becf; }
-  #code {
-    position: absolute; inset: 0; width: 100%; height: 100%;
-    background: transparent; color: transparent; caret-color: #eb89b7;
-    outline: 0; resize: none; overflow: auto; display: block;
-    -webkit-user-select: text; user-select: text; -webkit-touch-callout: default;
-  }
-  #code::selection { background: rgba(169, 71, 121, 0.55); }
-  .tk-c { color: #587d68; } .tk-s { color: #e5be71; } .tk-t { color: #e868a6; }
-  .tk-v { color: #7ab9f1; } .tk-k { color: #c292e8; font-weight: 700; }
-  .tk-n { color: #57c4d1; } .tk-p { color: #8c92a5; }
-
-  #out {
-    grid-area: out; margin: 0; overflow: auto; min-height: 0;
-    background: #07080f; border: 1px solid #232436; border-radius: 8px;
-    padding: 10px 12px;
-    font-family: var(--mono); font-size: 14px; line-height: 22px;
-    white-space: pre-wrap; word-break: break-word;
-    -webkit-user-select: text; user-select: text; -webkit-touch-callout: default;
-  }
-  #out b { font-weight: 700; }
-  .r-bad { color: #ff8fae; } .r-ok { color: #7ce6a8; } .r-dim { color: #6d7288; }
-  .r-warn { color: #ffc14b; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #04050b; }
+  body { font-family: "Segoe UI", system-ui, sans-serif; }
+  #stage { display: block; width: 100vw; height: 100vh; touch-action: none; cursor: crosshair; }
 </style>
 </head>
-<body class="mode-code">
+<body>
 <canvas id="stage"></canvas>
-
-<div id="work">
-  <div id="bar">
-    <span class="dot d1"></span><span class="dot d2"></span><span class="dot d3"></span>
-    <span id="fname">rose.js</span>
-    <span id="status">—</span>
-    <button id="reset" type="button">重置</button>
-    <button id="run" type="button">运行 ▶</button>
-  </div>
-  <div id="panes">
-    <div id="previewWrap"><canvas id="preview"></canvas></div>
-    <div id="editorPane">
-      <pre id="gutter"></pre>
-      <div id="editorScroll">
-        <div id="hl"><code id="hlc"></code></div>
-        <textarea id="code" spellcheck="false" autocapitalize="off" autocorrect="off"
-                  autocomplete="off" autocapitalize="off" wrap="off" aria-label="rose.js"></textarea>
-      </div>
-    </div>
-    <pre id="out"></pre>
-  </div>
-</div>
-
 <script>
 "use strict";
-
-/* ==========================================================================
-   rose.js —— 玩家在编辑器里看到、修改的就是这一段。
-   它由引擎真正执行：改错了花就是坏的，改对了花就是原来那朵。
-   ========================================================================== */
-const ROSE_MODULE_BUGGY = `
-const TAU = Math.PI * 2;
-
-// 每一层花瓣的数量：越靠外越多
-function petalCountOf(layer) {
-  3 + layer * 2;
-}
-
-// 26 个花心：沿一条黄金角螺旋线分布
-function makeRoseCenters(count, rng) {
-  const centers = [];
-  const goldenAngle = Math.PI * (3.0 - Math.sqrt(4.0));
-  for (let index = 0; index < centers.length; index++) {
-    const progress = (index + 0.45) / count;
-    const y = 304.0 - progress * 302.0 + rng.uniform(-9.0, 9.0);
-    const normalizedY = (y - 153.0) / 166.0;
-    const ring = 246.0 * Math.sqrt(Math.max(0.13, 1.0 - normalizedY * normalizedY));
-    const angle = index * goldenAngle + 0.38;
-    const radius = rng.uniform(74.0, 89.0) + (1.0 - Math.abs(normalizedY)) * 5.0;
-    centers.push([Math.cos(angle) * ring, y, Math.sin(angle) * ring, radius]);
-  }
-  return centers;
-}
-
-// 一直开下去（bouquet / ctx / requestAnimationFrame 由引擎提供）
-function bloomForever() {
-  const now = performance.now() / 1000;
-  const angle = (now * TAU / 36.0) % TAU;
-  bouquet.render(ctx, angle);
-  requestAnimationFrame(bloomForever());
-}
-`.trim();
-
-/* ── CONFIG ──────────────────────────────────────────────────
-   想加"小巧思"（通关彩蛋、她的名字、git commit 彩蛋……）改这里就行，
-   不用动引擎。比如给 successExtra 填一句话，通关时控制台会多打一行。 */
-const CONFIG = {
-  // 全部测试通过时，控制台最后一行
-  successLine: "→ 玫瑰盛开",
-  // 通关时额外打印的一行（null = 不打印）。例："$ git commit -m \"fix: 修好了这朵花\""
-  successExtra: null
-};
-
-/* 引擎真正使用的规则。玩家代码编译成功后，这里会被换成玩家的函数。 */
-function defaultPetalCountOf(layer) { return 3 + layer * 2; }
-
-function defaultMakeRoseCenters(count, rng) {
-  const centers = [];
-  const goldenAngle = Math.PI * (3.0 - Math.sqrt(5.0));
-  for (let index = 0; index < count; index++) {
-    const progress = (index + 0.45) / count;
-    const y = 304.0 - progress * 302.0 + rng.uniform(-9.0, 9.0);
-    const normalizedY = (y - 153.0) / 166.0;
-    const ring = 246.0 * Math.sqrt(Math.max(0.13, 1.0 - normalizedY * normalizedY));
-    const angle = index * goldenAngle + 0.38;
-    const x = Math.cos(angle) * ring;
-    const z = Math.sin(angle) * ring;
-    const radius = rng.uniform(74.0, 89.0) + (1.0 - Math.abs(normalizedY)) * 5.0;
-    centers.push([x, y, z, radius]);
-  }
-  return centers;
-}
-
-const RULES = {
-  petalCountOf: defaultPetalCountOf,
-  makeRoseCenters: defaultMakeRoseCenters,
-  continuous: true
-};
-
-/* 玩家的值直接进渲染，所以只做防止卡死的钳制，不做"纠正"：
-   undefined / NaN 会老老实实变成 0 片花瓣。 */
-function clampCount(value) {
-  const n = Math.round(Number(value));
-  if (!Number.isFinite(n)) return 0;
-  if (n < 0) return 0;
-  if (n > 12) return 12;
-  return n;
-}
-
-function petalCountFor(layer) {
-  const fn = RULES.petalCountOf;
-  if (typeof fn !== "function") return 0;
-  try { return clampCount(fn(layer)); } catch (err) { return 0; }
-}
 
 const TAU = Math.PI * 2;
 const BOUQUET_SCALE = 0.925;
@@ -434,7 +206,7 @@ class Builder {
     const cx = center[0], cy = center[1], cz = center[2];
     const rng = this.rng;
     for (let layer = 0; layer < 5; layer++) {
-      const petalCount = petalCountFor(layer);
+      const petalCount = 3 + layer * 2;
       for (let petal = 0; petal < petalCount; petal++) {
         let angle = TAU * petal / petalCount + layer * 0.73;
         angle += rng.uniform(-0.035, 0.035);
@@ -741,14 +513,19 @@ class Builder {
 }
 function makeRoseCenters() {
   const rng = makeRng(20260812);
-  let centers = [];
-  if (typeof RULES.makeRoseCenters === "function") {
-    try {
-      const result = RULES.makeRoseCenters(26, rng);
-      if (Array.isArray(result)) centers = result;
-    } catch (err) {
-      centers = [];
-    }
+  const centers = [];
+  const count = 26;
+  const goldenAngle = Math.PI * (3.0 - Math.sqrt(5.0));
+  for (let index = 0; index < count; index++) {
+    const progress = (index + 0.45) / count;
+    const y = 304.0 - progress * 302.0 + rng.uniform(-9.0, 9.0);
+    const normalizedY = (y - 153.0) / 166.0;
+    const ring = 246.0 * Math.sqrt(Math.max(0.13, 1.0 - normalizedY * normalizedY));
+    const angle = index * goldenAngle + 0.38;
+    const x = Math.cos(angle) * ring;
+    const z = Math.sin(angle) * ring;
+    const radius = rng.uniform(74.0, 89.0) + (1.0 - Math.abs(normalizedY)) * 5.0;
+    centers.push([x, y, z, radius]);
   }
   const extras = [[292.0, 91.0, 0.0], [230.0, 102.0, 12.0], [166.0, 111.0, -8.0], [98.0, 108.0, 10.0], [30.0, 99.0, -6.0]];
   for (const e of extras) centers.push([0.0, e[0], e[2], e[1]]);
@@ -763,7 +540,7 @@ function buildOutlines(centers) {
     if (bloomIndex < 26 && bloomIndex % 2 === 1) continue;
     const layers = [0, 2, 4];
     for (const layer of layers) {
-      const petalCount = petalCountFor(layer);
+      const petalCount = 3 + layer * 2;
       for (let petal = 0; petal < petalCount; petal++) {
         const angle = TAU * petal / petalCount + layer * 0.73;
         const contour = [];
@@ -844,16 +621,14 @@ function buildGeometry() {
   return { data, count: n, outlines, centers };
 }
 
-let geometry = buildGeometry();
-let data = geometry.data;
-let count = geometry.count;
-let outline = geometry.outlines;
-let colors = new Float32Array(count * 3);
+const geometry = buildGeometry();
+const data = geometry.data;
+const count = geometry.count;
+const outline = geometry.outlines;
+const colors = new Float32Array(count * 3);
 
-const stage = document.getElementById("stage");
-const preview = document.getElementById("preview");
-let canvas = stage;
-let ctx = canvas.getContext("2d", { alpha: false });
+const canvas = document.getElementById("stage");
+const ctx = canvas.getContext("2d", { alpha: false });
 
 let width = 1280, height = 720, dpr = 1;
 let showCode = true, left = 537, sceneW = 743;
@@ -861,8 +636,6 @@ let paletteIndex = 0;
 let started = performance.now() / 1000;
 let bloomStarted = started;
 let mouseParallax = 0, targetParallax = 0;
-let mode = "code";
-let spinPhase = 0;
 const sparks = [];
 const rng = makeRng(314159);
 const starField = [];
@@ -983,11 +756,10 @@ function ensureBuffers() {
   buildAmbient();
 }
 
-function sizeTarget(target, w, h) {
-  canvas = target;
-  ctx = canvas.getContext("2d", { alpha: false });
+function resize() {
+  const w = window.innerWidth, h = window.innerHeight;
   dpr = Math.min(window.devicePixelRatio || 1, 2);
-  const cw = Math.max(1, Math.round(w * dpr)), ch = Math.max(1, Math.round(h * dpr));
+  const cw = Math.round(w * dpr), ch = Math.round(h * dpr);
   if (canvas.width !== cw || canvas.height !== ch) {
     canvas.width = cw;
     canvas.height = ch;
@@ -996,30 +768,15 @@ function sizeTarget(target, w, h) {
   canvas.style.height = h + "px";
   width = w; height = h;
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  showCode = w >= 760;
+  left = showCode ? Math.max(400, Math.min(570, Math.round(w * 0.42))) : 0;
+  sceneW = Math.max(1, w - left);
   const scale = Math.max(0.82, Math.min(1.35, h / 720.0));
   codeFontPx = Math.max(12, Math.round(14 * scale));
   const smallPx = Math.max(11, Math.round(12 * scale));
   const labelPx = Math.max(13, Math.round(15 * scale));
   fontSmall = smallPx + "px " + UI_FONT;
   fontLabel = "bold " + labelPx + "px " + UI_FONT;
-}
-
-function resize() {
-  if (mode === "show") {
-    const w = window.innerWidth, h = window.innerHeight;
-    sizeTarget(stage, w, h);
-    showCode = w >= 760;
-    left = showCode ? Math.max(400, Math.min(570, Math.round(w * 0.42))) : 0;
-    sceneW = Math.max(1, w - left);
-  } else {
-    const rect = previewWrap.getBoundingClientRect();
-    const w = Math.max(1, Math.round(rect.width));
-    const h = Math.max(1, Math.round(rect.height));
-    sizeTarget(preview, w, h);
-    showCode = false;
-    left = 0;
-    sceneW = w;
-  }
   ensureBuffers();
   if (showCode) buildCodeLines();
 }
@@ -1372,7 +1129,6 @@ function drawSparkles(angle, bloomT, elapsed) {
 }
 
 function drawLabels(bloomPercent, elapsed) {
-  if (mode !== "show") return;
   ctx.textBaseline = "top";
   ctx.font = fontLabel;
   if (bloomPercent < 99.2) {
@@ -1437,12 +1193,11 @@ function frame(nowMs) {
   const now = nowMs / 1000;
   const delta = Math.min(0.05, now - lastFrame);
   lastFrame = now;
-  if (mode === "show" && (window.innerWidth !== width || window.innerHeight !== height)) resize();
+  if (window.innerWidth !== width || window.innerHeight !== height) resize();
   const elapsed = now - started;
   const bloomT = now - bloomStarted;
   mouseParallax += (targetParallax - mouseParallax) * 0.045;
-  if (RULES.continuous) spinPhase = (spinPhase + delta * TAU / 36.0) % TAU;
-  const angle = spinPhase + mouseParallax * 0.055;
+  const angle = (elapsed * TAU / 36.0) % TAU + mouseParallax * 0.055;
 
   ctx.globalCompositeOperation = "source-over";
   ctx.globalAlpha = 1;
@@ -1458,13 +1213,6 @@ function frame(nowMs) {
 }
 
 window.addEventListener("keydown", function (e) {
-  if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
-    if (typeof doRun === "function") doRun();
-    e.preventDefault();
-    return;
-  }
-  // 编辑模式下键盘属于编辑器：空格、R 这些必须照常输入
-  if (mode !== "show" || e.target === codeEl) return;
   if (e.key === " " || e.code === "Space") {
     setPalette(paletteIndex + 1);
     e.preventDefault();
@@ -1487,472 +1235,6 @@ window.addEventListener("mousemove", function (e) {
 canvas.addEventListener("mousedown", function (e) {
   if (e.button === 0) burst(e.clientX, e.clientY);
 });
-
-/* ==========================================================================
-   修 bug 闯关：编辑器 / 测试 / 通关
-   ========================================================================== */
-
-const previewWrap = document.getElementById("previewWrap");
-const els = {
-  code: document.getElementById("code"),
-  hlc: document.getElementById("hlc"),
-  hl: document.getElementById("hl"),
-  gutter: document.getElementById("gutter"),
-  out: document.getElementById("out"),
-  run: document.getElementById("run"),
-  reset: document.getElementById("reset"),
-  status: document.getElementById("status")
-};
-const codeEl = els.code;
-
-const LS_SRC = "eternal-rose:src";
-const LS_SOLVED = "eternal-rose:solved";
-
-function store(key, value) {
-  try { localStorage.setItem(key, value); } catch (err) { /* 无痕模式，忽略 */ }
-}
-function unstore(key) {
-  try { localStorage.removeItem(key); } catch (err) { /* 忽略 */ }
-}
-function recall(key) {
-  try { return localStorage.getItem(key); } catch (err) { return null; }
-}
-
-/* ── 编辑器：高亮 / 行号 / 滚动同步 ─────────────────────────── */
-
-/* KEYWORD_RE 的 $ 不带 m 标志（引擎是逐行喂给它的）。编辑器一次要
-   处理整份源码，所以复制一份加上 m，否则只有最后一行会认出行注释。 */
-const HL_RE = new RegExp(KEYWORD_RE.source, "gm");
-
-function esc(text) {
-  return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-}
-
-function highlight(src) {
-  let out = "";
-  let pos = 0;
-  let m;
-  HL_RE.lastIndex = 0;
-  while ((m = HL_RE.exec(src)) !== null) {
-    if (m.index > pos) out += esc(src.slice(pos, m.index));
-    let cls = "tk-p";
-    if (m[1]) cls = "tk-c";
-    else if (m[2]) cls = "tk-s";
-    else if (m[3]) cls = "tk-t";
-    else if (m[4]) cls = "tk-v";
-    else if (m[5]) cls = "tk-k";
-    else if (m[6]) cls = "tk-n";
-    out += '<span class="' + cls + '">' + esc(m[0]) + "</span>";
-    pos = m.index + m[0].length;
-    if (m[0].length === 0) HL_RE.lastIndex++;
-  }
-  return out + esc(src.slice(pos));
-}
-
-function syncScroll() {
-  els.gutter.scrollTop = codeEl.scrollTop;
-  els.hl.scrollTop = codeEl.scrollTop;
-  els.hl.scrollLeft = codeEl.scrollLeft;
-}
-
-function refreshEditor() {
-  const src = codeEl.value;
-  els.hlc.innerHTML = highlight(src) + "\n";
-  const lineCount = src.split("\n").length;
-  let nums = "";
-  for (let i = 1; i <= lineCount; i++) nums += i + "\n";
-  els.gutter.textContent = nums;
-  syncScroll();
-}
-
-/* ── 沙箱：真的执行他写的代码 ───────────────────────────────── */
-
-let rafCalls = 0;
-let rafScheduled = null;
-
-const engineStub = {
-  bouquet: { render: function () {} },
-  ctx: {},
-  performance: performance,
-  requestAnimationFrame: function (cb) {
-    rafCalls++;
-    if (typeof cb !== "function") {
-      throw new TypeError("requestAnimationFrame 需要一个函数，收到 " + typeof cb);
-    }
-    rafScheduled = cb;
-    return 1;
-  }
-};
-
-function compileModule(src) {
-  const body = '"use strict";\n' +
-    "const { bouquet, ctx, requestAnimationFrame, performance } = engine;\n" +
-    src +
-    "\n;return {" +
-    ' petalCountOf: typeof petalCountOf === "function" ? petalCountOf : null,' +
-    ' makeRoseCenters: typeof makeRoseCenters === "function" ? makeRoseCenters : null,' +
-    ' bloomForever: typeof bloomForever === "function" ? bloomForever : null };';
-  const api = new Function("engine", body)(engineStub);
-  if (!api.petalCountOf) throw new Error("找不到 petalCountOf()");
-  if (!api.makeRoseCenters) throw new Error("找不到 makeRoseCenters()");
-  if (!api.bloomForever) throw new Error("找不到 bloomForever()");
-  return api;
-}
-
-function describeError(err) {
-  if (!err) return "未知错误";
-  const name = err.name || "Error";
-  let msg = String(err.message === undefined ? err : err.message);
-  msg = msg.replace(/^<anonymous>:\s*/, "");
-  if (msg.length > 140) msg = msg.slice(0, 140) + "…";
-  return name + ": " + msg;
-}
-
-function validCenter(c) {
-  return Array.isArray(c) && c.length >= 4 &&
-    Number.isFinite(c[0]) && Number.isFinite(c[1]) &&
-    Number.isFinite(c[2]) && Number.isFinite(c[3]);
-}
-
-/* ── 测试 ──────────────────────────────────────────────────── */
-
-const EXPECTED_PETAL_COUNTS = [3, 5, 7, 9, 11];
-
-function runTests(api) {
-  const results = [];
-  let passed = 0, failed = 0;
-  function record(ok, name, msg, skip) {
-    results.push({ ok: ok, name: name, msg: msg, skip: !!skip });
-    if (skip) return;
-    if (ok) passed++; else failed++;
-  }
-
-  // 1. 花心
-  let centers = null;
-  try {
-    centers = api.makeRoseCenters(26, makeRng(20260812));
-  } catch (err) {
-    record(false, "makeRoseCenters()", describeError(err));
-    centers = null;
-  }
-  const centerList = Array.isArray(centers) ? centers : null;
-  if (centerList === null && results.length === 0) {
-    record(false, "makeRoseCenters()", "没有返回数组");
-  } else if (centerList !== null && results.length === 0) {
-    if (centerList.length !== 26) {
-      record(false, "makeRoseCenters()", "返回 " + centerList.length + " 个花心（期望 26 个）");
-    } else if (!centerList.every(validCenter)) {
-      record(false, "makeRoseCenters()", "花心坐标里有 NaN / Infinity");
-    } else {
-      record(true, "makeRoseCenters()", "26 个花心，坐标全部有效");
-    }
-  }
-
-  // 2. 每层花瓣数
-  let counts = [];
-  try {
-    for (let layer = 0; layer < 5; layer++) counts.push(api.petalCountOf(layer));
-  } catch (err) {
-    counts = [];
-  }
-  let countsOk = counts.length === 5;
-  if (countsOk) {
-    for (let i = 0; i < 5; i++) {
-      if (counts[i] !== EXPECTED_PETAL_COUNTS[i]) countsOk = false;
-    }
-  }
-  if (countsOk) {
-    record(true, "petalCountOf()", "[" + counts.join(", ") + "]");
-  } else if (counts.length === 0) {
-    record(false, "petalCountOf()", "调用时抛错");
-  } else {
-    let firstBad = -1;
-    for (let i = 0; i < counts.length; i++) {
-      if (counts[i] !== EXPECTED_PETAL_COUNTS[i]) { firstBad = i; break; }
-    }
-    const actual = counts[firstBad];
-    const shown = actual === undefined ? "undefined" : String(actual);
-    record(false, "petalCountOf()", "第 " + firstBad + " 层返回 " + shown + "（期望 " + EXPECTED_PETAL_COUNTS[firstBad] + "）");
-  }
-
-  // 3. 螺旋排列（行为测试：花心不能挤在一条直线上）
-  if (!centerList || centerList.length < 2 || !centerList.every(validCenter)) {
-    record(false, "螺旋排列", "跳过（没有可用的花心）", true);
-  } else {
-    const dirs = {};
-    for (let i = 0; i < centerList.length; i++) {
-      const c = centerList[i];
-      const deg = Math.atan2(c[2], c[0]) * 180 / Math.PI;
-      dirs[Math.round(deg)] = true;
-    }
-    const spread = Object.keys(dirs).length;
-    if (spread >= 20) {
-      record(true, "螺旋排列", centerList.length + " 个花心分布在 " + spread + " 个方向");
-    } else {
-      record(false, "螺旋排列", centerList.length + " 个花心只有 " + spread + " 个方向，排成了一条直线");
-    }
-  }
-
-  // 4. 一直开下去
-  let loopError = null;
-  rafCalls = 0;
-  rafScheduled = null;
-  try {
-    api.bloomForever();
-  } catch (err) {
-    loopError = err;
-  }
-  const continuous = !loopError && typeof rafScheduled === "function";
-  if (loopError) {
-    record(false, "bloomForever()", describeError(loopError));
-  } else if (typeof rafScheduled !== "function") {
-    record(false, "bloomForever()", "没有把下一帧交给 requestAnimationFrame");
-  } else {
-    record(true, "bloomForever()", "每帧只排一次队");
-  }
-
-  return { results: results, passed: passed, failed: failed, continuous: continuous };
-}
-
-/* ── 控制台 ────────────────────────────────────────────────── */
-
-function padName(name) {
-  let s = name;
-  while (s.length < 19) s += " ";
-  return s;
-}
-
-function renderConsole(outcome, compileError) {
-  const lines = [];
-  if (compileError) {
-    lines.push('<span class="r-warn"><b>✗ 编译失败</b></span>');
-    lines.push('<span class="r-bad">' + esc(describeError(compileError)) + "</span>");
-    lines.push("");
-    lines.push('<span class="r-dim">玫瑰停在上一帧，先让代码能编译。</span>');
-    els.out.innerHTML = lines.join("\n");
-    return;
-  }
-  for (const r of outcome.results) {
-    if (r.skip) {
-      lines.push('<span class="r-dim">– ' + esc(padName(r.name)) + esc(r.msg) + "</span>");
-    } else if (r.ok) {
-      lines.push('<span class="r-ok">✓ ' + esc(padName(r.name)) + "</span>" +
-                 '<span class="r-dim">' + esc(r.msg) + "</span>");
-    } else {
-      lines.push('<span class="r-bad">✗ ' + esc(padName(r.name)) + "</span>" +
-                 '<span class="r-bad">' + esc(r.msg) + "</span>");
-    }
-  }
-  lines.push("");
-  lines.push(outcome.failed === 0
-    ? '<span class="r-ok"><b>' + outcome.passed + " passed · 0 failed</b></span>"
-    : '<span class="r-bad"><b>' + outcome.passed + " passed · " + outcome.failed + " failed</b></span>");
-  if (outcome.failed === 0) {
-    lines.push('<span class="r-ok">' + esc(CONFIG.successLine) + "</span>");
-    if (CONFIG.successExtra) lines.push('<span class="r-ok">' + esc(CONFIG.successExtra) + "</span>");
-  }
-  els.out.innerHTML = lines.join("\n");
-}
-
-function setStatus(failed) {
-  if (failed === null) {
-    els.status.textContent = "编译失败";
-    els.status.className = "";
-  } else if (failed === 0) {
-    els.status.textContent = "0 个问题 · 玫瑰盛开";
-    els.status.className = "ok";
-  } else {
-    els.status.textContent = failed + " 个问题";
-    els.status.className = "";
-  }
-}
-
-/* ── 几何重建：把玩家的值喂进渲染引擎 ────────────────────────── */
-
-function rebuild() {
-  geometry = buildGeometry();
-  data = geometry.data;
-  count = geometry.count;
-  outline = geometry.outlines;
-  colors = new Float32Array(count * 3);
-  outX = null; outY = null; outD = null;
-  setPalette(paletteIndex);
-}
-
-/* ── 运行 ──────────────────────────────────────────────────── */
-
-let won = false;
-
-function applySource(src) {
-  let api = null;
-  let compileError = null;
-  try {
-    api = compileModule(src);
-  } catch (err) {
-    compileError = err;
-  }
-  if (!api) {
-    renderConsole(null, compileError);
-    setStatus(null);
-    return false;
-  }
-  const outcome = runTests(api);
-  RULES.petalCountOf = api.petalCountOf;
-  RULES.makeRoseCenters = api.makeRoseCenters;
-  RULES.continuous = outcome.continuous;
-  rebuild();
-  renderConsole(outcome, null);
-  setStatus(outcome.failed);
-  return outcome.failed === 0;
-}
-
-function doRun() {
-  if (won) return;
-  store(LS_SRC, codeEl.value);
-  const solved = applySource(codeEl.value);
-  if (!solved) return;
-  won = true;
-  setTimeout(function () { enterShowMode(true); }, 1100);
-}
-
-/* ── 两种模式 ──────────────────────────────────────────────── */
-
-function enterCodeMode() {
-  mode = "code";
-  document.body.className = "mode-code";
-  const now = performance.now() / 1000;
-  started = now;
-  bloomStarted = now - 30.0;   // 坏掉的花直接以"长成了"的样子示人
-  spinPhase = 0;
-  sparks.length = 0;
-  mouseParallax = 0;
-  targetParallax = 0;
-  resize();
-}
-
-function enterShowMode(persist) {
-  mode = "show";
-  document.body.className = "mode-show";
-  RULES.continuous = true;
-  const now = performance.now() / 1000;
-  started = now;
-  bloomStarted = now;
-  spinPhase = 0;
-  sparks.length = 0;
-  mouseParallax = 0;
-  targetParallax = 0;
-  resize();
-  if (persist) store(LS_SOLVED, "1");
-}
-
-/* ── iOS 视口：键盘弹起时不要挡住编辑器 ──────────────────────── */
-
-function syncViewport() {
-  const vv = window.visualViewport;
-  const h = vv ? vv.height : window.innerHeight;
-  const top = vv ? vv.offsetTop : 0;
-  const root = document.documentElement.style;
-  root.setProperty("--vh", Math.round(h) + "px");
-  root.setProperty("--vvtop", Math.round(top) + "px");
-  document.body.classList.toggle("kb", h < 560);
-}
-
-function keepAwake() {
-  if (!("wakeLock" in navigator)) return;
-  try {
-    navigator.wakeLock.request("screen").catch(function () {});
-  } catch (err) { /* 不支持就算了 */ }
-}
-
-/* ── 事件 ──────────────────────────────────────────────────── */
-
-codeEl.addEventListener("input", function () {
-  refreshEditor();
-  store(LS_SRC, codeEl.value);
-});
-codeEl.addEventListener("scroll", syncScroll);
-codeEl.addEventListener("focus", function () {
-  syncViewport();
-  setTimeout(syncViewport, 320);
-});
-window.visualViewport && window.visualViewport.addEventListener("resize", syncViewport);
-window.visualViewport && window.visualViewport.addEventListener("scroll", syncViewport);
-window.addEventListener("resize", syncViewport);
-window.addEventListener("orientationchange", function () {
-  setTimeout(syncViewport, 260);
-  setTimeout(resize, 300);
-});
-document.addEventListener("visibilitychange", function () {
-  if (document.visibilityState === "visible") keepAwake();
-});
-
-if (window.ResizeObserver) {
-  new ResizeObserver(function () {
-    if (mode === "code") resize();
-  }).observe(previewWrap);
-}
-
-els.run.addEventListener("click", doRun);
-
-let resetArmed = false;
-let resetTimer = 0;
-function disarmReset() {
-  resetArmed = false;
-  els.reset.classList.remove("armed");
-  els.reset.textContent = "重置";
-}
-els.reset.addEventListener("click", function () {
-  if (!resetArmed) {
-    resetArmed = true;
-    els.reset.classList.add("armed");
-    els.reset.textContent = "再点一次";
-    clearTimeout(resetTimer);
-    resetTimer = setTimeout(disarmReset, 4000);
-    return;
-  }
-  clearTimeout(resetTimer);
-  disarmReset();
-  won = false;
-  codeEl.value = ROSE_MODULE_BUGGY;
-  unstore(LS_SRC);
-  unstore(LS_SOLVED);
-  if (mode !== "code") enterCodeMode();
-  refreshEditor();
-  applySource(codeEl.value);
-  codeEl.scrollTop = 0;
-  syncScroll();
-});
-
-preview.addEventListener("pointerdown", function (e) {
-  if (mode !== "code") return;
-  const rect = preview.getBoundingClientRect();
-  burst(e.clientX - rect.left, e.clientY - rect.top);
-});
-
-/* ── 启动 ──────────────────────────────────────────────────── */
-
-(function boot() {
-  const params = new URLSearchParams(location.search);
-  if (params.has("fresh")) { unstore(LS_SRC); unstore(LS_SOLVED); }
-  const savedSrc = params.has("fresh") ? null : recall(LS_SRC);
-  const savedSolved = !params.has("fresh") && !params.has("edit") && recall(LS_SOLVED) === "1";
-
-  codeEl.value = savedSrc || ROSE_MODULE_BUGGY;
-  refreshEditor();
-  syncViewport();
-  keepAwake();
-
-  if (savedSolved) {
-    RULES.petalCountOf = defaultPetalCountOf;
-    RULES.makeRoseCenters = defaultMakeRoseCenters;
-    RULES.continuous = true;
-    rebuild();
-    enterShowMode(false);
-  } else {
-    enterCodeMode();
-    applySource(codeEl.value);   // 先跑一次，让他一上来就看到 4 个红叉
-  }
-})();
 
 window.addEventListener("resize", resize);
 
